@@ -61,21 +61,6 @@ async function main() { // jshint ignore:line
 
   // Example Express Rest API endpoints
   //app.use('/api/files', uploadRoutes(UPLOAD_FOLDER));
-  app.use('/api', apiRoutes(config));
-
-  // Server static files from /browser
-  app.get(
-    '*.*',
-    express.static(DIST_FOLDER, {
-      maxAge: '1y'
-    })
-  );
-
-  // All regular routes use the Universal engine
-  //app.get('*', (req, res) => {
-  //  res.render('index', { req });
-  //});
-
   io.on("connection", (socket) => {
     autoinquirer.on('prompt', prompt => {
         //console.log('Prompt: ' + prompt);
@@ -93,6 +78,21 @@ async function main() { // jshint ignore:line
     autoinquirer.run();
   });
   
+  app.use('/api', apiRoutes(config));
+
+  // Server static files from /browser
+  app.get(
+    '*.*',
+    express.static(DIST_FOLDER, {
+      maxAge: '1y'
+    })
+  );
+
+  // All regular routes use the Universal engine
+  //app.get('*', (req, res) => {
+  //  res.render('index', { req });
+  //});
+
   // Start up the Node server
   server.listen(PORT, () => {
     console.log(`Node Express server listening on http://localhost:${PORT}`);
