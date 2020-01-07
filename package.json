@@ -5,8 +5,9 @@
   "main": "dist/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc --build src/tsconfig.json",
-    "start": "npm run build && node dist/server.js"
+    "build": "npm run clean && tsc --build src/tsconfig.json",
+    "clean": "rimraf dist",
+    "start": "npm run build && node dist/server.js ../autoinquirer/__tests__/schema.json ../autoinquirer/__tests__/data.json"
   },
   "author": "",
   "license": "MIT",
