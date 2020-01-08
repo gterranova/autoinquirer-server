@@ -1,0 +1,428 @@
+{
+  "projects": [
+    {
+      "_id": "5e1615dedd0d604a881235e1",
+      "name": "Genzano",
+      "slug": "",
+      "municipality": "Genzano di Lucania",
+      "region": "Basilicata",
+      "client": "Tsolar",
+      "power": "20MW",
+      "hasCDU": true,
+      "parties": [
+        {
+          "_id": "5e1616e0dd0d6062481318a7",
+          "quality": "in nome proprio",
+          "role": "grantor",
+          "name": "CALIA Giuseppe Angelo",
+          "info": {
+            "name": "CALIA Giuseppe Angelo",
+            "gender": "male",
+            "birthdate": "31/05/1958",
+            "birthplace": "Altamura",
+            "birthprovince": "BA",
+            "taxcode": "CLAGPP58E31A225Q"
+          }
+        },
+        {
+          "_id": "5e161770dd0d6062483a7749",
+          "quality": "in nome proprio",
+          "role": "grantor",
+          "name": "LOIUDICE Carlo",
+          "info": {
+            "name": "LOIUDICE Carlo",
+            "gender": "male",
+            "birthdate": "15/06/1980",
+            "birthplace": "Altamura",
+            "birthprovince": "BA",
+            "taxcode": "LDCCRL80H15A225Z"
+          }
+        },
+        {
+          "_id": "5e1617f8dd0d606248130405",
+          "quality": "in nome proprio",
+          "role": "grantor",
+          "name": "LOIUDICE Giuseppe",
+          "info": {
+            "name": "LOIUDICE Giuseppe",
+            "gender": "male",
+            "birthdate": "05/09/1990",
+            "birthplace": "Bari",
+            "birthprovince": "BA",
+            "taxcode": "LDCGPP90P05A662V"
+          }
+        },
+        {
+          "_id": "5e1617fadd0d6062481843d2",
+          "role": "grantor",
+          "name": "LOIUDICE Paola",
+          "info": {
+            "name": "LOIUDICE Paola",
+            "gender": "female",
+            "birthdate": "24/08/1982",
+            "birthplace": "Bari",
+            "birthprovince": "BA",
+            "taxcode": "LDCPLA82M64A662H"
+          },
+          "quality": "in nome proprio"
+        }
+      ],
+      "hasUsiCivici": false,
+      "lands": [
+        {
+          "_id": "5e16187bdd0d60624837635b",
+          "name": "Sheet 5, p. 175",
+          "sheet": "5",
+          "parcel": "175 (ex 14?)",
+          "municipality": "Genzano di Lucania",
+          "area": "24.90.46",
+          "quality": "sem.",
+          "classe": "2",
+          "rd": "1.350,53",
+          "ra": "836,04",
+          "holders": [
+            {
+              "_id": "5e1618f5dd0d6062481c1c6a",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1616e0dd0d6062481318a7",
+              "quota": "57/72",
+              "ownershipType": "property"
+            },
+            {
+              "_id": "5e161920dd0d60624818eaa2",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1616e0dd0d6062481318a7",
+              "quota": "15/72",
+              "ownershipType": "property",
+              "ownershipOrigin": "purchase",
+              "ownershipTitle": {
+                "date": "13/03/2008",
+                "notary": {
+                  "name": "Patrizia Speranza",
+                  "seat": "Altamura"
+                },
+                "repertorio": "67797",
+                "raccolta": "17831",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "27/03/2008",
+                  "number": "3697/1T"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "_id": "5e161976dd0d606248188d3b",
+          "name": "Sheet 5, p. 124",
+          "sheet": "5",
+          "parcel": "124",
+          "municipality": "Genzano di Lucania",
+          "area": "00.42.40",
+          "quality": "sem.",
+          "classe": "1",
+          "rd": "28,47",
+          "ra": "17,52",
+          "holders": [
+            {
+              "_id": "5e1619b0dd0d60624860e87f",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1616e0dd0d6062481318a7",
+              "quota": "57/72",
+              "ownershipType": "property"
+            },
+            {
+              "_id": "5e1619c3dd0d60624835acd0",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1616e0dd0d6062481318a7",
+              "quota": "15/72",
+              "ownershipType": "property",
+              "ownershipOrigin": "purchase",
+              "ownershipTitle": {
+                "date": "13/03/2008",
+                "notary": {
+                  "name": "Patrizia Speranza",
+                  "seat": "Altamura"
+                },
+                "repertorio": "67797",
+                "raccolta": "17831",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "27/03/2008",
+                  "number": "3697/1T"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "_id": "5e1619f0dd0d606248a67bb9",
+          "name": "Sheet 5, p. 138",
+          "sheet": "5",
+          "parcel": "138",
+          "municipality": "Genzano di Lucania",
+          "area": "01.46.00",
+          "quality": "sem.",
+          "classe": "2",
+          "rd": "79,17",
+          "ra": "49,01",
+          "holders": [
+            {
+              "_id": "5e161a3bdd0d60624880436c",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1616e0dd0d6062481318a7",
+              "quota": "57/72",
+              "ownershipType": "property"
+            },
+            {
+              "_id": "5e161a3ddd0d6062481978c7",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1616e0dd0d6062481318a7",
+              "quota": "15/72",
+              "ownershipType": "property",
+              "ownershipOrigin": "purchase",
+              "ownershipTitle": {
+                "date": "13/03/2008",
+                "notary": {
+                  "name": "Patrizia Speranza",
+                  "seat": "Altamura"
+                },
+                "repertorio": "67797",
+                "raccolta": "17831",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "27/03/2008",
+                  "number": "3697/1T"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "_id": "5e161a72dd0d606248259bfd",
+          "name": "Sheet 5, p. 20",
+          "sheet": "5",
+          "parcel": "20",
+          "municipality": "Genzano di Lucania",
+          "area": "06.27.63",
+          "quality": "sem.",
+          "classe": "1",
+          "rd": "421,39",
+          "ra": "259,32",
+          "holders": [
+            {
+              "_id": "5e161ac7dd0d60624827012c",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e161770dd0d6062483a7749",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            },
+            {
+              "_id": "5e161bcadd0d60624888e488",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1617fadd0d6062481843d2",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            },
+            {
+              "_id": "5e161bcadd0d60624888e488",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e161770dd0d6062483a7749",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "_id": "5e161c41dd0d60081036edb2",
+          "name": "Sheet 5, p. 181",
+          "sheet": "5",
+          "parcel": "181",
+          "municipality": "Genzano di Lucania",
+          "area": "19.16.77",
+          "quality": "sem.",
+          "classe": "2",
+          "rd": "1.039,43",
+          "ra": "643,45",
+          "holders": [
+            {
+              "_id": "5e161c9fdd0d60081011b23f",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e161770dd0d6062483a7749",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            },
+            {
+              "_id": "5e161ca0dd0d6008102b1c31",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1617f8dd0d606248130405",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            },
+            {
+              "_id": "5e161ca1dd0d6008102a7cce",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1617fadd0d6062481843d2",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "_id": "5e161dcddd0d6050081c43a7",
+          "name": "Sheet 5, p. 179",
+          "sheet": "5",
+          "parcel": "179",
+          "municipality": "Genzano di Lucania",
+          "area": "sem.",
+          "quality": "2",
+          "classe": "06.57.56",
+          "rd": "356,58",
+          "ra": "220,74",
+          "holders": [
+            {
+              "_id": "5e161e06dd0d6050081d5a09",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e161770dd0d6062483a7749",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            },
+            {
+              "_id": "5e161e08dd0d6050081b1dd3",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1617f8dd0d606248130405",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            },
+            {
+              "_id": "5e161e09dd0d60500851cca0",
+              "name": "projects/5e1615dedd0d604a881235e1/parties/5e1617fadd0d6062481843d2",
+              "quota": "3/9",
+              "ownershipType": "property",
+              "ownershipOrigin": "lawful succession",
+              "ownershipTitle": {
+                "date": "16/07/2007",
+                "registrationInfo": {
+                  "seat": {
+                    "city": "Gioia del Colle"
+                  },
+                  "date": "14/01/2008",
+                  "number": "8548.1/2008"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "_id": "5e162df8dd0d6031c08a11d3",
+          "lands": [
+            "projects/5e1615dedd0d604a881235e1/lands/5e161c41dd0d60081036edb2",
+            "projects/5e1615dedd0d604a881235e1/lands/5e161dcddd0d6050081c43a7"
+          ],
+          "title": "Aree a rischio idrogeologico moderato ed a pericolosità moderata (R1)",
+          "description": ""
+        },
+        {
+          "_id": "5e163003dd0d6031c01a7d43",
+          "title": "Idrografia",
+          "lands": [
+            "projects/5e1615dedd0d604a881235e1/lands/5e16187bdd0d60624837635b"
+          ]
+        }
+      ],
+      "registrations": [
+        {
+          "_id": "5e162e44dd0d6031c01c4023",
+          "lands": [
+            "projects/5e1615dedd0d604a881235e1/lands/5e16187bdd0d60624837635b",
+            "projects/5e1615dedd0d604a881235e1/lands/5e161a72dd0d606248259bfd",
+            "projects/5e1615dedd0d604a881235e1/lands/5e161dcddd0d6050081c43a7"
+          ],
+          "title": "Fondi interclusi con possibile obbligo di assicurare servitù di passaggio"
+        }
+      ]
+    }
+  ]
+}
