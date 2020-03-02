@@ -9,7 +9,8 @@ import * as cors from 'cors';
 //import { authRoutes } from './auth';
 import { createDatasource } from './datasource';
 import { apiRoutes } from './api';
-import { AutoInquirer, PromptBuilder } from 'autoinquirer';
+import { AutoInquirer } from 'autoinquirer';
+import { PromptBuilder } from './promptbuilder';
 
 //import { uploadRoutes } from './upload';
 //import { contactsRoutes } from './contacts';
@@ -63,7 +64,7 @@ async function main() { // jshint ignore:line
   //app.use('/api/files', uploadRoutes(UPLOAD_FOLDER));
   io.on("connection", (socket) => {
     autoinquirer.on('prompt', prompt => {
-        //console.log('Prompt: ' + prompt);
+        //console.log('Prompt: ' + JSON.stringify(prompt));
         socket.broadcast.emit("prompt", prompt);
     });
     autoinquirer.on('error', state => { 

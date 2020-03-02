@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npm run clean && tsc --build src/tsconfig.json",
     "clean": "rimraf dist",
-    "start": "npm run build && node dist/server.js examples/schema.json examples/data.json"
+    "start": "npm run build && node dist/server.js ../autoinquirer-composer/examples/schema.json ../autoinquirer-composer/examples/data.json"
   },
   "author": "",
   "license": "MIT",
@@ -19,6 +19,7 @@
     "cors": "^2.8.5",
     "delete": "^1.1.0",
     "express": "^4.17.1",
+    "handlebars": "^4.7.3",
     "http": "0.0.0",
     "morgan": "^1.9.1",
     "socket.io": "^2.3.0"
