@@ -1,11 +1,12 @@
 import { Router } from 'express';
+import { Action } from 'autoinquirer/build/src/interfaces';
 
 export const apiRoutes = config => {
   var apiRouter = Router();
   const { dispatcher } = config;
 
   // Example Express Rest API endpoints
-  apiRouter.use('', (req, res, next) => {
+  apiRouter.use('', async (req, res, next) => {
     const action = {
       GET: 'get',
       POST: 'push',
@@ -18,9 +19,12 @@ export const apiRoutes = config => {
     if (req.query.schema) {
       fn = dispatcher.getSchema(uri);
     } else {
-      fn = dispatcher.dispatch(action, uri, undefined, req.body);
+      if (action != Action.GET) {
+        await dispatcher.dispatch(action, uri, undefined, req.body);
+      }
+      fn = dispatcher.render(action, uri, undefined, action == 'get'? undefined: req.body);
     }
-    console.log(action, uri)
+    
     try {
       return fn.then(data => {
         if (!data) {

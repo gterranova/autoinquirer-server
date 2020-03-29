@@ -10,7 +10,7 @@ import * as cors from 'cors';
 import { createDatasource } from './datasource';
 import { apiRoutes } from './api';
 import { AutoInquirer } from 'autoinquirer';
-import { PromptBuilder } from './promptbuilder';
+import { FormlyBuilder } from './formlybuilder';
 
 //import { uploadRoutes } from './upload';
 //import { contactsRoutes } from './contacts';
@@ -31,14 +31,16 @@ async function main() { // jshint ignore:line
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist');
 
+  const renderer = new FormlyBuilder();
+
   config.dispatcher = await createDatasource(
     // jshint ignore:line
     join(program.args[0]),
     join(program.args[1]),
-    new PromptBuilder()
+    renderer,  
   );
- 
-  const autoinquirer = new AutoInquirer(config.dispatcher);
+
+  //const autoinquirer = new AutoInquirer(config.dispatcher);
 
   app.use(
     cors({
@@ -62,6 +64,7 @@ async function main() { // jshint ignore:line
 
   // Example Express Rest API endpoints
   //app.use('/api/files', uploadRoutes(UPLOAD_FOLDER));
+  /*
   io.on("connection", (socket) => {
     autoinquirer.on('prompt', prompt => {
         //console.log('Prompt: ' + JSON.stringify(prompt));
@@ -78,7 +81,7 @@ async function main() { // jshint ignore:line
     });
     autoinquirer.run();
   });
-  
+  */
   app.use('/api', apiRoutes(config));
 
   // Server static files from /browser
@@ -90,9 +93,9 @@ async function main() { // jshint ignore:line
   );
 
   // All regular routes use the Universal engine
-  //app.get('*', (req, res) => {
-  //  res.render('index', { req });
-  //});
+  app.get('*', (req, res) => {
+    res.sendfile(join(DIST_FOLDER, 'index.html'));
+  });
 
   // Start up the Node server
   server.listen(PORT, () => {
