@@ -1,6 +1,8 @@
 {
     "compileOnSave": false,
     "compilerOptions": {
+        //"alwaysStrict": true,
+        //"strict": true,
         "importHelpers": true,
         "sourceMap": true,
         "declaration": false,

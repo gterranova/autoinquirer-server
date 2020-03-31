@@ -9,7 +9,7 @@ import * as cors from 'cors';
 //import { authRoutes } from './auth';
 import { createDatasource } from './datasource';
 import { apiRoutes } from './api';
-import { AutoInquirer } from 'autoinquirer';
+import { Dispatcher } from 'autoinquirer';
 import { FormlyBuilder } from './formlybuilder';
 
 //import { uploadRoutes } from './upload';
@@ -17,9 +17,15 @@ import { FormlyBuilder } from './formlybuilder';
 //import { generateSitemap } from './sitemap';
 import * as SocketIO from 'socket.io';
 
+interface IConfig {
+  secret: string,
+  dispatcher: Dispatcher,
+  autoinquirer: null
+};
+
 var program = require('commander');
 
-const config = { secret: 'my-secret', dispatcher: null, autoinquirer: null };
+const config: IConfig = { secret: 'my-secret', dispatcher: null, autoinquirer: null };
 
 // Express server
 async function main() { // jshint ignore:line
@@ -31,14 +37,12 @@ async function main() { // jshint ignore:line
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist');
 
-  const renderer = new FormlyBuilder();
-
   config.dispatcher = await createDatasource(
     // jshint ignore:line
     join(program.args[0]),
-    join(program.args[1]),
-    renderer,  
+    join(program.args[1])
   );
+  new FormlyBuilder(config.dispatcher);
 
   //const autoinquirer = new AutoInquirer(config.dispatcher);
 
@@ -94,7 +98,7 @@ async function main() { // jshint ignore:line
 
   // All regular routes use the Universal engine
   app.get('*', (req, res) => {
-    res.sendfile(join(DIST_FOLDER, 'index.html'));
+    res.sendFile(join(DIST_FOLDER, 'index.html'));
   });
 
   // Start up the Node server

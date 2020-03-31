@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npm run clean && tsc --build src/tsconfig.json",
+    "build": "tsc --build src/tsconfig.json",
     "clean": "rimraf dist",
     "start": "npm run build && node dist/server.js ../autoinquirer-composer/examples/schema.json ../autoinquirer-composer/examples/data.json"
   },
@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.2",
+    "@types/json-schema": "^7.0.4",
     "@types/node": "^12.12.17",
     "ts-node": "^8.5.4",
     "tslib": "^1.10.0",

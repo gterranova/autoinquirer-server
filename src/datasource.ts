@@ -1,14 +1,15 @@
 import { join } from 'path';
-import { Dispatcher } from 'autoinquirer';
+import { Dispatcher, JsonSchema, DataSource } from 'autoinquirer';
 import { FileSystemDataSource } from './filesystem';
+import { DataRenderer } from 'autoinquirer/build/datasource';
 
 const DIST_FOLDER = join(process.cwd(), '../');
 
 export const createDatasource = async function (
-  schemaFile,
-  dataFile,
-  renderer?
-) {
+  schemaFile: string | JsonSchema,
+  dataFile: string | DataSource,
+  renderer?: DataRenderer
+): Promise<Dispatcher> {
   // jshint ignore:line
 
   const dispatcher = new Dispatcher(schemaFile, dataFile, renderer);

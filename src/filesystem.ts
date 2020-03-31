@@ -4,7 +4,7 @@ import * as del from "delete";
 import { DataSource, JsonSchema } from 'autoinquirer';
 
 import * as crypto from 'crypto';
-import { IProperty } from '../../autoinquirer/build/src/interfaces';
+import { IProperty } from 'autoinquirer/build/interfaces';
 
 function hash(key) {
   return crypto.pbkdf2Sync('secret', JSON.stringify(key), 100, 12, 'sha1').toString('hex');  // '3745e48...08d59ae'

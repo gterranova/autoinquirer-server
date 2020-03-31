@@ -1,17 +1,13 @@
 // tslint:disable:no-console
 
-import { Action, IPrompt, IProperty } from 'autoinquirer/build/src/interfaces';
+import { Action, IProperty } from 'autoinquirer/build/interfaces';
 
-import { DataSource, DataRenderer } from 'autoinquirer/build/src/datasource';
-import { backPath, evalExpr, getType } from 'autoinquirer/build/src/utils';
+import { DataSource, Dispatcher } from 'autoinquirer';
+import { DataRenderer } from 'autoinquirer/build/datasource';
+import { evalExpr, getType } from 'autoinquirer/build/utils';
 import * as Handlebars from 'handlebars';
 
 // tslint:disable-next-line:no-any
-interface Item extends IPrompt {
-    model: any;
-    fields: any;
-};
-
 export interface ISelectOption {
     label: string;
     value: string;
@@ -25,7 +21,7 @@ export function absolute(testPath: string, absolutePath: string): string {
     const rel = testPath.split('/');
     while (rel.length) { 
         const t = rel.shift(); 
-        if (t === '.') { continue; } 
+        if (t === '.' || t === undefined) { continue; } 
         else if (t === '..') { 
             if (!p0.length) {  
                 continue;
@@ -40,31 +36,33 @@ export function absolute(testPath: string, absolutePath: string): string {
 export class FormlyBuilder extends DataRenderer {
     private datasource: DataSource;
 
-    public setDatasource(datasource: DataSource) {
+    constructor(datasource: Dispatcher) {
+        super();
         this.datasource = datasource;
-        // TODO: fix async helpers
-        Handlebars.registerHelper("resolve", value => this.datasource.dispatch('get', value) || '');
+        datasource.setRenderer(this);
     }
 
-    private async makeBreadcrumb(itemPath: string, propertySchema: IProperty, propertyValue: Item): Promise<any> {
+    private async makeBreadcrumb(itemPath: string, propertySchema: IProperty, propertyValue: any): Promise<any> {
         const pathParts = itemPath.split('/');
         return {
             type: 'breadcrumb',
             path: itemPath,
-            parts: pathParts? await Promise.all( pathParts.map( async (p, idx) => {
-                const path = pathParts.slice(0, idx+1).join('/');
-                const value = await this.datasource.dispatch('get', path) || [];
-                const schema = await this.datasource.getSchema(path);
-                return { path, label: (await this.getName(value, p, schema)).trim() };
+            items: pathParts? await Promise.all( pathParts.map( async (p, idx) => {
+                const value = pathParts.slice(0, idx+1).join('/');
+                const label = await this.datasource.dispatch('get', value) || [];
+                const schema = await this.datasource.getSchema(value);
+                return { value, label: (await this.getName(label, p, schema)).trim() };
             })): []
         };
     }
 
-    public async render(methodName: string, itemPath: string, propertySchema: IProperty, propertyValue: Item, datasource?: DataSource): Promise<any> {
-        if (propertySchema.type === 'object' && Object.keys(propertySchema.properties).length === 1) {
-            const singleProperty = Object.keys(propertySchema.properties)[0];
+    public async render(methodName: string, itemPath: string, propertySchema: IProperty, propertyValue: any, datasource?: DataSource): Promise<any> {
+        const properties = propertySchema?.properties||{};
+        const keys = Object.keys(properties);
+        if (propertySchema.type === 'object' && keys.length === 1) {
+            const singleProperty = keys[0];
             itemPath = `${itemPath}${itemPath?'/':''}${singleProperty}`;
-            propertySchema = propertySchema.properties[singleProperty];
+            propertySchema = properties[singleProperty];
             propertyValue = propertyValue[singleProperty];
         }
 
@@ -77,7 +75,7 @@ export class FormlyBuilder extends DataRenderer {
         //return this.evaluate(methodName, itemPath, propertySchema, propertyValue);
     }
 
-    private async checkAllowed(propertySchema: IProperty, parentPropertyValue: Item): Promise<boolean> {
+    private async checkAllowed(propertySchema: IProperty, parentPropertyValue: any): Promise<boolean> {
         if (!propertySchema || !propertySchema.depends) { return true; }
         return parentPropertyValue ? !!evalExpr(propertySchema.depends, parentPropertyValue) : true;
     }
@@ -88,7 +86,7 @@ export class FormlyBuilder extends DataRenderer {
         const label = await this.getName(model, key, schema);
         if (multiple || single) {
             const property: IProperty = schema.items || schema;
-            const dataPath = absolute(property.$data, basePath);
+            const dataPath = absolute(property.$data||'', basePath);
             let $values = [], $schema: IProperty;
             if (property.enum) {
                 $values = property.enum || [];
@@ -97,7 +95,7 @@ export class FormlyBuilder extends DataRenderer {
                 $schema = await this.datasource.getSchema(dataPath);
                 $schema = $schema.items || $schema;
             }
-            const options = !property.enum? await Promise.all($values.map(async (arrayItem) => {
+            const options = !property.enum? await Promise.all($values.map(async (arrayItem: any) => {
                 return { 
                     label: (getType(arrayItem) === 'Object')? await this.getName(arrayItem, key, $schema): arrayItem,
                     value: `${dataPath}/${arrayItem._id || arrayItem}`,
@@ -107,7 +105,7 @@ export class FormlyBuilder extends DataRenderer {
                 schema: {
                     type: multiple ? "array": "string", 
                     title: label,
-                    enum: options?options.map( i => i.value || i):$values,
+                    enum: options?.map( (i: any) => i.value || i) || $values,
                     description: schema.description, 
                     widget: { formlyConfig: { type: 'select', templateOptions: { label, multiple, options } } }
                 },
@@ -190,7 +188,7 @@ export class FormlyBuilder extends DataRenderer {
 
     }
 
-    private async makeForm(itemPath: string, propertySchema: IProperty, propertyValue: Item): Promise<any> {
+    private async makeForm(itemPath: string, propertySchema: IProperty, propertyValue: any): Promise<any> {
         const pathParts = itemPath.split('/');
         const key = pathParts.length? pathParts[pathParts.length-1]: itemPath;
         const sanitized = await this.sanitizeJson({
@@ -248,7 +246,7 @@ export class FormlyBuilder extends DataRenderer {
         if (propertySchema === undefined) { return false; };
 
         return propertySchema.type === 'array' &&
-            this.isSelect(propertySchema.items);
+            this.isSelect(propertySchema.items||{});
     }
 
     private isSelect(propertySchema: IProperty): boolean {

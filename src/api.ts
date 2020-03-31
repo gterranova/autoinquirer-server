@@ -1,21 +1,22 @@
 import { Router } from 'express';
-import { Action } from 'autoinquirer/build/src/interfaces';
+import { Action } from 'autoinquirer/build/interfaces';
+import { Dispatcher } from 'autoinquirer';
 
-export const apiRoutes = config => {
+export const apiRoutes = (config: { secret: string, dispatcher: Dispatcher, autoinquirer: null }) => {
   var apiRouter = Router();
   const { dispatcher } = config;
 
   // Example Express Rest API endpoints
   apiRouter.use('', async (req, res, next) => {
-    const action = {
+    const action: string = (<any>{
       GET: 'get',
       POST: 'push',
       PUT: 'set',
       PATCH: 'update',
       DELETE: 'del'
-    }[req.method];
+    })[req.method];
     const uri = decodeURI(req.path.slice(1));
-    let fn;
+    let fn: Promise<any>;
     if (req.query.schema) {
       fn = dispatcher.getSchema(uri);
     } else {
@@ -26,14 +27,14 @@ export const apiRoutes = config => {
     }
     
     try {
-      return fn.then(data => {
+      return fn.then((data: any)=> {
         if (!data) {
           res.statusCode = 404;
           res.send();
         } else {
           res.json(data)
         }
-      }).catch(reason => {
+      }).catch((reason: any) => {
         res.statusCode = 400;
         res.send(reason);
       });  
