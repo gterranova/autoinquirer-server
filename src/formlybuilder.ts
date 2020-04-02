@@ -86,7 +86,7 @@ export class FormlyBuilder extends DataRenderer {
         const label = await this.getName(model, key, schema);
         if (multiple || single) {
             const property: IProperty = schema.items || schema;
-            const dataPath = absolute(property.$data||'', basePath);
+            const dataPath = property?.$data?.path ? absolute(property.$data.path||'', basePath) : '';
             let $values = [], $schema: IProperty;
             if (property.enum) {
                 $values = property.enum || [];
@@ -98,7 +98,7 @@ export class FormlyBuilder extends DataRenderer {
             const options = !property.enum? await Promise.all($values.map(async (arrayItem: any) => {
                 return { 
                     label: (getType(arrayItem) === 'Object')? await this.getName(arrayItem, key, $schema): arrayItem,
-                    value: `${dataPath}/${arrayItem._id || arrayItem}`,
+                    value: arrayItem._fullPath || `${dataPath}/${arrayItem._id || arrayItem}`,
                 };
             })): undefined;
             const item = {
@@ -206,7 +206,7 @@ export class FormlyBuilder extends DataRenderer {
 
     private async getName(value: any, propertyNameOrIndex: string | number, propertySchema: IProperty): Promise<string> {
         let label = '';
-        if (propertySchema && propertySchema.$data && typeof propertySchema.$data === 'string') {
+        if (propertySchema?.$data && typeof propertySchema.$data === 'string') {
             propertySchema = await this.datasource.getSchema(value);
             value = await this.datasource.dispatch('get', value) || '';
             return await this.getName(value, propertyNameOrIndex, propertySchema);
@@ -219,7 +219,7 @@ export class FormlyBuilder extends DataRenderer {
                     if (labelPart && labelPart.indexOf('/') > 3) {
                         //console.log(labelPart)
                         propertySchema = await this.datasource.getSchema(labelPart);
-                        if (propertySchema) {
+                        if (propertySchema && !propertySchema.$data) {
                             value = await this.datasource.dispatch('get', labelPart) || '';
                             return await this.getName(value, propertyNameOrIndex, propertySchema);
                         }    
@@ -252,6 +252,6 @@ export class FormlyBuilder extends DataRenderer {
     private isSelect(propertySchema: IProperty): boolean {
         if (propertySchema === undefined) { return false; };
 
-        return propertySchema.enum !== undefined || propertySchema.$data !== undefined;
+        return propertySchema.enum !== undefined || propertySchema?.$data?.path !== undefined;
     }
 }

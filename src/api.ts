@@ -35,6 +35,7 @@ export const apiRoutes = (config: { secret: string, dispatcher: Dispatcher, auto
           res.json(data)
         }
       }).catch((reason: any) => {
+        console.log(reason);
         res.statusCode = 400;
         res.send(reason);
       });  
