@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc --build src/tsconfig.json",
+    "watch": "tsc -w -p src/tsconfig.json",
     "clean": "rimraf dist",
     "start": "npm run build && node dist/server.js ../autoinquirer-composer/examples/schema.json ../autoinquirer-composer/examples/data.json"
   },
@@ -22,6 +23,7 @@
     "handlebars": "^4.7.3",
     "http": "0.0.0",
     "json-stringify-safe": "^5.0.1",
+    "lodash": "^4.17.15",
     "morgan": "^1.9.1",
     "socket.io": "^2.3.0"
   },

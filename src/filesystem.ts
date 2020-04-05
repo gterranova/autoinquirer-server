@@ -1,10 +1,9 @@
 import * as fs from "fs";
 import { join } from 'path';
 import * as del from "delete";
-import { DataSource, JsonSchema } from 'autoinquirer';
-
 import * as crypto from 'crypto';
-import { IProperty } from 'autoinquirer/build/interfaces';
+import { IProperty, IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { AbstractDispatcher } from 'autoinquirer/build/datasource';
 
 function hash(key) {
   return crypto.pbkdf2Sync('secret', JSON.stringify(key), 100, 12, 'sha1').toString('hex');  // '3745e48...08d59ae'
@@ -49,7 +48,7 @@ export interface FileElement {
   selectedFile: boolean;
 };
 
-export class FileSystemDataSource extends DataSource {
+export class FileSystemDataSource extends AbstractDispatcher {
   rootDir: string;
   constructor(rootDir?: string) {
     super();
@@ -58,7 +57,8 @@ export class FileSystemDataSource extends DataSource {
   public async connect() { };
   public async close() { };
 
-  public async getSchema(itemPath?: string, _schemaSource?: JsonSchema, parentPath?: string, params?: any): Promise<IProperty> {
+  public async getSchema(options?: IDispatchOptions): Promise<IProperty> {
+    const { itemPath, parentPath, params } = options;
     //console.log(`FILESYSTEM getSchema(itemPath: ${itemPath} ... parentPath?: ${parentPath}, params?: ${params})`);
     const fileSchema = {
       type:"object", title:"File",
@@ -88,7 +88,7 @@ export class FileSystemDataSource extends DataSource {
     return folderSchema;
   }
 
-  public async get(itemPath?: string, schema?: any, value?: any, parentPath?: string, params?: any): Promise<FileElement[]|FileElement> {
+  public async get({ itemPath, schema, value, parentPath, params }): Promise<FileElement[]|FileElement> {
     //console.log(`FILESYSTEM get(itemPath: ${itemPath}, schema: ${JSON.stringify(schema)}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
     const files = [];
     const dir = join(this.rootDir, params.rootDir);
@@ -106,42 +106,42 @@ export class FileSystemDataSource extends DataSource {
     return files;
   };
 
-  public async update(itemPath: string, _: any, value: FileElement, parentPath?: string, params?: any) {
-    console.log(`FILESYSTEM update(itemPath: ${itemPath}, value: ${value}, parentPath: ${parentPath}, params: ${params})`)
-    if (value !== undefined) {
-      if (itemPath) {
+  public async update(options?: IDispatchOptions) {
+    console.log(`FILESYSTEM update(itemPath: ${options.itemPath}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${options.params})`)
+    if (options?.value !== undefined) {
+      if (options?.itemPath) {
         const files = [];
-        const dir = join(this.rootDir, params.rootDir);
-        for await (const f of getFiles(dir, itemPath)) { files.push(f); };
+        const dir = join(this.rootDir, options?.params?.rootDir);
+        for await (const f of getFiles(dir, options?.itemPath)) { files.push(f); };
         return files.map((f: FileElement) => {
           const currentPath = join(f.dir, f.name);
-          const newPath = join(this.rootDir, params.rootDir, value.dir, value.name);
+          const newPath = join(this.rootDir, options?.params?.rootDir, options?.value?.dir, options?.value?.name);
           if (currentPath !== newPath) {
             fs.renameSync(currentPath, newPath)
           }
         });
       }
-      return value;
+      return options?.value;
     }
   }
 
-  public async del(itemPath?: string, schema?: any, value?: any, parentPath?: string, params?: any) {
-    console.log(`FILESYSTEM del(itemPath: ${itemPath}, schema: ${schema}, value: ${value}, parentPath: ${parentPath}, params: ${params})`)
-    if (itemPath) {
+  public async del(options?: IDispatchOptions) {
+    console.log(`FILESYSTEM del(itemPath: ${options?.itemPath}, schema: ${options?.schema}, value: ${options?.value}, parentPath: ${options?.parentPath}, params: ${options?.params})`)
+    if (options?.itemPath) {
       const files = [];
-      const dir = join(this.rootDir, params.rootDir);
-      for await (const f of getFiles(dir, itemPath)) { files.push(f); };
+      const dir = join(this.rootDir, options?.params?.rootDir);
+      for await (const f of getFiles(dir, options?.itemPath)) { files.push(f); };
       del(files.map((f: FileElement) => join(f.dir, f.name)));
     }
   };
 
-  public async dispatch(methodName: string, itemPath?: string, schema?: any, value?: any, parentPath?: string, params?: any): Promise<any> {
+  public async dispatch(methodName: string, options?: IDispatchOptions): Promise<any> {
     //console.log(`FILESYSTEM dispatch(methodName: ${methodName}, itemPath: ${itemPath}, schema: ${schema}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
     if (!this[methodName]) {
       throw new Error(`Method ${methodName} not implemented`);
     }
 
     // tslint:disable-next-line:no-return-await
-    return await this[methodName].call(this, itemPath, schema, value, parentPath, params);
+    return await this[methodName].call(this, options);
   };
 }

@@ -1,11 +1,11 @@
 // tslint:disable:no-console
 
-import { Action, IProperty } from 'autoinquirer/build/interfaces';
-
-import { DataSource, Dispatcher } from 'autoinquirer';
-import { DataRenderer } from 'autoinquirer/build/datasource';
-import { evalExpr, getType } from 'autoinquirer/build/utils';
+import { isObject } from 'lodash';
+import { Action, IProperty, IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { Dispatcher } from 'autoinquirer';
+import { evalExpr } from 'autoinquirer/build/utils';
 import * as Handlebars from 'handlebars';
+import { IDataRenderer } from 'autoinquirer/build/datasource';
 
 // tslint:disable-next-line:no-any
 export interface ISelectOption {
@@ -33,31 +33,29 @@ export function absolute(testPath: string, absolutePath: string): string {
     return p0.join('/');
 }
 
-export class FormlyBuilder extends DataRenderer {
-    private datasource: DataSource;
+export class FormlyRenderer extends Dispatcher implements IDataRenderer {
 
-    constructor(datasource: Dispatcher) {
-        super();
-        this.datasource = datasource;
-        datasource.setRenderer(this);
-    }
-
-    private async makeBreadcrumb(itemPath: string, propertySchema: IProperty, propertyValue: any): Promise<any> {
-        const pathParts = itemPath.split('/');
+    private async makeBreadcrumb(options?: IDispatchOptions): Promise<any> {
+        const pathParts = options.itemPath.split('/');
         return {
             type: 'breadcrumb',
-            path: itemPath,
+            path: options.itemPath,
             items: pathParts? await Promise.all( pathParts.map( async (p, idx) => {
                 const value = pathParts.slice(0, idx+1).join('/');
-                const label = await this.datasource.dispatch('get', value) || [];
-                const schema = await this.datasource.getSchema(value);
+                const schema = await this.getSchema({ itemPath: value });
+                const label = await this.dispatch('get', { itemPath: value, schema }) || [];
                 return { value, label: (await this.getName(label, p, schema)).trim() };
             })): []
         };
     }
 
-    public async render(methodName: string, itemPath: string, propertySchema: IProperty, propertyValue: any, datasource?: DataSource): Promise<any> {
-        const properties = propertySchema?.properties||{};
+    public async render(methodName: string, options?: IDispatchOptions): Promise<any> {
+        if (methodName === Action.EXIT) { return null; }
+        let itemPath = options?.itemPath || '';
+        let propertySchema = options?.schema || await this.getSchema({ itemPath });
+        let propertyValue = await this.dispatch(methodName, { ...options, schema: propertySchema });
+
+        const properties = propertySchema.properties||{};
         const keys = Object.keys(properties);
         if (propertySchema.type === 'object' && keys.length === 1) {
             const singleProperty = keys[0];
@@ -66,11 +64,9 @@ export class FormlyBuilder extends DataRenderer {
             propertyValue = propertyValue[singleProperty];
         }
 
-        if (methodName === Action.EXIT) { return null; }
-        if (datasource) this.datasource = datasource;
         return { components: [
-            await this.makeBreadcrumb(itemPath, propertySchema, propertyValue),
-            await this.makeForm(itemPath, propertySchema, propertyValue)
+            await this.makeBreadcrumb({itemPath, schema: propertySchema, value: propertyValue}),
+            await this.makeForm({itemPath, schema: propertySchema, value: propertyValue})
         ] };
         //return this.evaluate(methodName, itemPath, propertySchema, propertyValue);
     }
@@ -91,13 +87,13 @@ export class FormlyBuilder extends DataRenderer {
             if (property.enum) {
                 $values = property.enum || [];
             } else if (property.$data) {
-                $values = await this.datasource.dispatch('get', dataPath) || [];
-                $schema = await this.datasource.getSchema(dataPath);
+                $schema = await this.getSchema({ itemPath: dataPath });
+                $values = await this.dispatch('get', { itemPath: dataPath, schema: $schema }) || [];
                 $schema = $schema.items || $schema;
             }
             const options = !property.enum? await Promise.all($values.map(async (arrayItem: any) => {
                 return { 
-                    label: (getType(arrayItem) === 'Object')? await this.getName(arrayItem, key, $schema): arrayItem,
+                    label: isObject(arrayItem)? await this.getName(arrayItem, key, $schema): arrayItem,
                     value: arrayItem._fullPath || `${dataPath}/${arrayItem._id || arrayItem}`,
                 };
             })): undefined;
@@ -143,7 +139,7 @@ export class FormlyBuilder extends DataRenderer {
                 widget: { formlyConfig: { type: schema.$widget, templateOptions: { label, path: basePath } } }
             };
             const properties = schema.properties ? { ...schema.properties } : {};
-            if (schema.patternProperties && getType(model) === 'Object') {
+            if (schema.patternProperties && isObject(model)) {
                 const objProperties = Object.keys(schema.properties) || [];
                 // tslint:disable-next-line:no-bitwise
                 const otherProperties = Object.keys(model).filter((p: string) => p[0] !== '_' && !~objProperties.indexOf(p));
@@ -188,14 +184,15 @@ export class FormlyBuilder extends DataRenderer {
 
     }
 
-    private async makeForm(itemPath: string, propertySchema: IProperty, propertyValue: any): Promise<any> {
+    private async makeForm(options: IDispatchOptions): Promise<any> {
+        const { itemPath, schema, value } = options;
         const pathParts = itemPath.split('/');
         const key = pathParts.length? pathParts[pathParts.length-1]: itemPath;
         const sanitized = await this.sanitizeJson({
             key, 
             basePath: itemPath,
-            schema: propertySchema,
-            model: propertyValue || {}
+            schema: schema,
+            model: value || {}
         });
         return {
             type: 'form',
@@ -206,9 +203,9 @@ export class FormlyBuilder extends DataRenderer {
 
     private async getName(value: any, propertyNameOrIndex: string | number, propertySchema: IProperty): Promise<string> {
         let label = '';
-        if (propertySchema?.$data && typeof propertySchema.$data === 'string') {
-            propertySchema = await this.datasource.getSchema(value);
-            value = await this.datasource.dispatch('get', value) || '';
+        if (value && propertySchema?.$data && typeof propertySchema.$data === 'string') {
+            propertySchema = await this.getSchema(value);
+            value = await this.dispatch('get', { itemPath: value, schema: propertySchema }) || '';
             return await this.getName(value, propertyNameOrIndex, propertySchema);
         }
         if (propertySchema.hasOwnProperty('$title') && value) {
@@ -218,9 +215,9 @@ export class FormlyBuilder extends DataRenderer {
                 label = (await Promise.all(label.split(' ').map(async labelPart => {
                     if (labelPart && labelPart.indexOf('/') > 3) {
                         //console.log(labelPart)
-                        propertySchema = await this.datasource.getSchema(labelPart);
+                        propertySchema = await this.getSchema({ itemPath: labelPart });
                         if (propertySchema && !propertySchema.$data) {
-                            value = await this.datasource.dispatch('get', labelPart) || '';
+                            value = await this.dispatch('get', { itemPath: labelPart, schema: propertySchema }) || '';
                             return await this.getName(value, propertyNameOrIndex, propertySchema);
                         }    
                     }

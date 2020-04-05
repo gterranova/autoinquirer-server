@@ -7,25 +7,16 @@ import * as cors from 'cors';
 //import * as expressJwt from 'express-jwt';
 //import { adminRoutes } from './admin';
 //import { authRoutes } from './auth';
-import { createDatasource } from './datasource';
 import { apiRoutes } from './api';
-import { Dispatcher } from 'autoinquirer';
-import { FormlyBuilder } from './formlybuilder';
+import { FormlyRenderer } from './formlybuilder';
 
 //import { uploadRoutes } from './upload';
 //import { contactsRoutes } from './contacts';
 //import { generateSitemap } from './sitemap';
 import * as SocketIO from 'socket.io';
-
-interface IConfig {
-  secret: string,
-  dispatcher: Dispatcher,
-  autoinquirer: null
-};
+import { FileSystemDataSource } from './filesystem';
 
 var program = require('commander');
-
-const config: IConfig = { secret: 'my-secret', dispatcher: null, autoinquirer: null };
 
 // Express server
 async function main() { // jshint ignore:line
@@ -37,12 +28,14 @@ async function main() { // jshint ignore:line
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist');
 
-  config.dispatcher = await createDatasource(
+  const renderer = new FormlyRenderer(
     // jshint ignore:line
     join(program.args[0]),
     join(program.args[1])
   );
-  new FormlyBuilder(config.dispatcher);
+
+  //renderer.registerProxy('filesystem', new FileSystemDataSource(DIST_FOLDER));
+  await renderer.connect(); // jshint ignore:line
 
   //const autoinquirer = new AutoInquirer(config.dispatcher);
 
@@ -86,7 +79,7 @@ async function main() { // jshint ignore:line
     autoinquirer.run();
   });
   */
-  app.use('/api', apiRoutes(config));
+  app.use('/api', apiRoutes(renderer));
 
   // Server static files from /browser
   app.get(
