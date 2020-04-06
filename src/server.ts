@@ -44,7 +44,7 @@ async function main() { // jshint ignore:line
       credentials: true
     })
   );
-  app.use(bodyParser.json());
+  app.use(bodyParser.json({ strict: false }));
   app.use(bodyParser.urlencoded({ extended: true }));
   app.use(logger('dev'));
   //app.use(

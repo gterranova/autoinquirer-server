@@ -15,7 +15,7 @@ export interface ISelectOption {
 }
 
 export function absolute(testPath: string, absolutePath: string): string {
-    if (testPath && testPath[0] === '/') { return testPath; }
+    if (testPath && testPath[0] !== '.') { return testPath; }
     if (!testPath) { return absolutePath; }
     const p0 = absolutePath.split('/');
     const rel = testPath.split('/');
@@ -55,14 +55,17 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         let propertySchema = options?.schema || await this.getSchema({ itemPath });
         let propertyValue = await this.dispatch(methodName, { ...options, schema: propertySchema });
 
+        /*
         const properties = propertySchema.properties||{};
         const keys = Object.keys(properties);
-        if (propertySchema.type === 'object' && keys.length === 1) {
+        if (propertySchema.type === 'object' && keys.length === 1 && 
+        (properties[keys[0]].type === 'array' || properties[keys[0]].type === 'object') ) {
             const singleProperty = keys[0];
             itemPath = `${itemPath}${itemPath?'/':''}${singleProperty}`;
             propertySchema = properties[singleProperty];
-            propertyValue = propertyValue[singleProperty];
+            propertyValue = (propertyValue||{})[singleProperty];
         }
+        */
 
         return { components: [
             await this.makeBreadcrumb({itemPath, schema: propertySchema, value: propertyValue}),
@@ -88,8 +91,8 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                 $values = property.enum || [];
             } else if (property.$data) {
                 $schema = await this.getSchema({ itemPath: dataPath });
+                $schema = $schema?.items || $schema;
                 $values = await this.dispatch('get', { itemPath: dataPath, schema: $schema }) || [];
-                $schema = $schema.items || $schema;
             }
             const options = !property.enum? await Promise.all($values.map(async (arrayItem: any) => {
                 return { 
