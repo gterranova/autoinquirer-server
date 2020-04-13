@@ -2,8 +2,9 @@ import * as fs from "fs";
 import { join } from 'path';
 import * as del from "delete";
 import * as crypto from 'crypto';
-import { IProperty, IDispatchOptions } from 'autoinquirer/build/interfaces';
-import { AbstractDispatcher } from 'autoinquirer/build/datasource';
+import { AbstractDataSource } from 'autoinquirer/build/datasource';
+import { IDispatchOptions, IProperty } from 'autoinquirer/build/interfaces';
+import { Dispatcher } from 'autoinquirer';
 
 function hash(key) {
   return crypto.pbkdf2Sync('secret', JSON.stringify(key), 100, 12, 'sha1').toString('hex');  // '3745e48...08d59ae'
@@ -48,14 +49,22 @@ export interface FileElement {
   selectedFile: boolean;
 };
 
-export class FileSystemDataSource extends AbstractDispatcher {
+export class FileSystemDataSource extends Dispatcher {
   rootDir: string;
   constructor(rootDir?: string) {
-    super();
+    super(null, null);
     this.rootDir = rootDir || '/';
   }
   public async connect() { };
   public async close() { };
+
+  getDataSource(_parentDataSource?: AbstractDataSource) {
+    return this;
+  }
+  
+  getSchemaDataSource(_parentDataSource?: AbstractDataSource) {
+    return this;
+  }
 
   public async getSchema(options?: IDispatchOptions): Promise<IProperty> {
     const { itemPath, parentPath, params } = options;

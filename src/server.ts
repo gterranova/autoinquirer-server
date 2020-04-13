@@ -1,5 +1,6 @@
 import * as express from 'express';
 import { join } from 'path';
+import * as fs from 'fs';
 
 import * as bodyParser from 'body-parser';
 import * as logger from 'morgan';
@@ -15,11 +16,12 @@ import { FormlyRenderer } from './formlybuilder';
 //import { generateSitemap } from './sitemap';
 import * as SocketIO from 'socket.io';
 import { FileSystemDataSource } from './filesystem';
+import { JsonDataSource, Dispatcher } from 'autoinquirer';
 
 var program = require('commander');
 
 // Express server
-async function main() { // jshint ignore:line
+async function main(schemaFile, dataFile) { // jshint ignore:line
   // jshint ignore:line
   const app = express();
   const http = require('http');
@@ -28,11 +30,10 @@ async function main() { // jshint ignore:line
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist');
 
-  const renderer = new FormlyRenderer(
-    // jshint ignore:line
-    join(program.args[0]),
-    join(program.args[1])
-  );
+  const renderer = new FormlyRenderer(schemaFile, dataFile);
+  renderer.registerProxy({ name: 'Dispatcher', classRef: Dispatcher });
+  renderer.registerProxy({ name: 'JsonDataSource', classRef: JsonDataSource });
+  renderer.registerProxy({ name: 'FileSystemDataSource', classRef: FileSystemDataSource });
 
   //renderer.registerProxy('filesystem', new FileSystemDataSource(DIST_FOLDER));
   await renderer.connect(); // jshint ignore:line
@@ -99,22 +100,34 @@ async function main() { // jshint ignore:line
     console.log(`Node Express server listening on http://localhost:${PORT}`);
   });
 
-  process.on('unhandledRejection', (err, p) => {
-    console.log('An unhandledRejection occurred');
-    console.log(`Rejected Promise: ${p}`);
-    console.log(`Rejection:`, err);
-    // dispatcher.close();
-  });
+}
+
+function isDir(path) {
+  try {
+      return fs.lstatSync(path).isDirectory();
+  } catch (e) {
+      // lstatSync throws an error if path doesn't exist
+      return false;
+  }
 }
 
 program
   .version('1.0.0')
-  .description('Example json editor')
-  .arguments('<schemaFile> <dataFile>')
+  .description('JSON API Server')
+  .arguments('[directory]')
+  .option('-s, --schema [schemaFile]', 'Schema', 'schema.json')
+  .option('-d, --data [dataFile]', 'Data', 'data.json')
   .parse(process.argv);
 
-if (program.args.length < 1) {
-    program.outputHelp();
+if (!program.args[0] || isDir(program.args[0])) {
+  main(join(program.args[0] || '.', program.schema), join(program.args[0] || '.', program.data));
 } else {
-    main();
+  program.outputHelp();
 }
+
+process.on('unhandledRejection', (err: Error) => {
+  //console.log('An unhandledRejection occurred');
+  //console.log(`Rejected Promise: ${p}`);
+  console.log(err.stack || err.toString());
+  // dispatcher.close();
+});
