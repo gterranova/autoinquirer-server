@@ -5,6 +5,7 @@ import { Action, IProperty, IProxyInfo, IDispatchOptions } from 'autoinquirer/bu
 import { Dispatcher } from 'autoinquirer';
 import { evalExpr } from 'autoinquirer/build/utils';
 import * as Handlebars from 'handlebars';
+import * as _ from 'lodash';
 import { IDataRenderer, AbstractDispatcher, AbstractDataSource } from 'autoinquirer/build/datasource';
 
 // tslint:disable-next-line:no-any
@@ -200,7 +201,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             };
             const properties = schema.properties ? { ...schema.properties } : {};
             if (schema.patternProperties && isObject(value)) {
-                const objProperties = Object.keys(schema.properties) || [];
+                const objProperties = Object.keys(properties) || [];
                 // tslint:disable-next-line:no-bitwise
                 const otherProperties = Object.keys(value).filter((p: string) => p[0] !== '_' && !~objProperties.indexOf(p));
                 for (const key of otherProperties) {
@@ -217,25 +218,35 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     const defaultValue = properties[prop].type === 'object'? {} : (this.isSelect(properties[prop])? '': []);
                     const propKey = properties[prop].type === 'array' && !this.isCheckBox(properties[prop]) ? `_${prop}` : prop;
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
-                    safeSchema.properties[propKey] = {
-                        ...sanitized.schema,
-                        disabled: !(await this.checkAllowed(properties[prop], value))
-                    };
+                    safeSchema.properties[propKey] = sanitized.schema;
                     safeObj[propKey] = sanitized.model;
+                    safeSchema.properties[propKey].disabled = !(await this.checkAllowed(properties[prop], value))
                 } else {
-                    safeSchema.properties[prop] = properties[prop];
-                    safeObj[prop] = value && value[prop];
-                    safeSchema.properties[prop] = {...safeSchema.properties[prop], 
-                        widget: { formlyConfig: { type: properties[prop].$widget, templateOptions: { 
-                            label: await this.getName({ itemPath: `${itemPath}/${prop}`, value: safeObj[prop], schema: safeSchema.properties[prop], parentPath})
-                        } } 
-                    }};
+                    const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: value && value[prop], parentPath });
+                    safeSchema.properties[prop] = sanitized.schema;
+                    safeObj[prop] = sanitized.model;
+                    safeSchema.properties[prop].disabled = !(await this.checkAllowed(properties[prop], value))
                 }
             }
             return { schema: safeSchema, model: safeObj || {} };
+        } else if (schema.type === 'string' && (schema.format === 'date' || schema.format === 'date-time')) {
+            schema.$widget = schema.$widget || 'datepicker';
         }
 
-        return { schema, model: value };
+        const schema2 = {
+            ...schema,
+            widget: { 
+                formlyConfig: { 
+                    type: schema.$widget, 
+                    templateOptions: { 
+                        label: await this.getName({ itemPath, value, schema, parentPath})
+                    } 
+                }
+            } 
+        };
+
+
+        return { schema: schema2, model: value };
 
     }
 
