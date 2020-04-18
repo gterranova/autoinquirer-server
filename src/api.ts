@@ -18,8 +18,10 @@ export const apiRoutes = (renderer: FormlyRenderer) => {
     let fn: Promise<any>;
     if (req.query.schema) {
       fn = renderer.getSchema({ itemPath: uri});
+    } else if (action !== Action.GET) {
+      fn = renderer.dispatch(action, { itemPath: uri, value: req.body });
     } else {
-      fn = renderer.render(action, { itemPath: uri, value: action == 'get'? undefined: req.body });
+      fn = renderer.render(action, { itemPath: uri, value: undefined });
     }
     
     try {
@@ -31,7 +33,7 @@ export const apiRoutes = (renderer: FormlyRenderer) => {
           res.json(data)
         }
       }).catch((reason: any) => {
-        console.log(reason);
+        console.error(reason);
         res.statusCode = 400;
         res.send(reason);
       });  
