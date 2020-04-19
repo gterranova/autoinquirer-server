@@ -21,6 +21,13 @@ interface IEntryPointInfo {
     objPath: string;
 };
 
+interface ITemplateOptions {
+    label?: string,
+    path?: string,
+    options?: any[],
+    multiple?: boolean,
+}
+
 export function absolute(testPath: string, absolutePath: string): string {
     if (testPath && testPath[0] !== '.') { return testPath; }
     if (!testPath) { return absolutePath; }
@@ -49,7 +56,8 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             path: options.itemPath,
             items: pathParts? await Promise.all( pathParts.map( async (_p, idx) => {
                 const value = pathParts.slice(0, idx+1).join('/');
-                return { value, label: (await this.getName({itemPath: value, parentPath: options.parentPath })).trim() };
+                const { entryPointInfo } = await this.getDataSourceInfo({ itemPath: value });
+                return { value, label: (await this.getName({itemPath: value, parentPath: entryPointInfo?.parentPath })).trim() };
             })): []
         };
     }
@@ -106,9 +114,11 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             $schema = $schema?.items || $schema;
             const enumValues = await this.getEnumValues(options);
             const enumOptions = !property.enum? await Promise.all(enumValues.values.map(async (value: any) => {
+                const finalPath = (enumValues?.entryPointInfo?.parentPath ? `${enumValues.entryPointInfo.parentPath}/`: '') +(value._fullPath || `${dataPath}/${value._id || value}`);
                 return { 
                     label: isObject(value)? await this.getName({ itemPath: value._fullPath || `${dataPath}/${value._id || value}`, value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath}): value,
                     value: value._fullPath || `${dataPath}/${value._id || value}`,
+                    path: finalPath
                 };
             })): undefined;
             const item = {
@@ -120,7 +130,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     widget: { formlyConfig: { 
                         type: 'select', 
                         wrappers: [single && !property.enum ? 'form-field-link': 'form-field'],
-                        templateOptions: { label, multiple, options: enumOptions } 
+                        templateOptions: <ITemplateOptions>{ label, multiple, options: enumOptions } 
                     } }
                 },
                 model: value || (multiple? []: ''),
@@ -137,9 +147,10 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             const model = (await Promise.all(enumValues.values
                 .filter( (v) => value.indexOf(v._fullPath || `${dataPath}/${v._id || v}`) !== -1)
                 .map(async (value: any) => {
+                    const finalPath = (enumValues?.entryPointInfo?.parentPath ? `${enumValues.entryPointInfo.parentPath}/`: '') +(value._fullPath || `${dataPath}/${value._id || value}`);
                 return { 
                     name: isObject(value)? await this.getName({ itemPath: value._fullPath || `${dataPath}/${value._id || value}`, value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath}): value,
-                    path: value._fullPath || `${dataPath}/${value._id || value}`,
+                    path: finalPath,
                 };
             }))) || [];
 
@@ -153,11 +164,9 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                         type: 'object',
                         properties: { name: { type: 'string' }, path: { type: 'string' } }
                     },
-                    widget: { formlyConfig: { 
-                        type: schema.$widget, 
-                        wrappers: ['accordion'],
-                        templateOptions: { label, path: itemPath } 
-                    } }
+                    widget: { formlyConfig: _.merge({ 
+                        templateOptions: <ITemplateOptions>{ label, path: itemPath } 
+                    }, schema.$widget || {}) }
                 },
                 model
             }
@@ -172,11 +181,9 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                         type: 'object',
                         properties: { name: { type: 'string' }, path: { type: 'string' } }
                     },
-                    widget: { formlyConfig: { 
-                        type: schema.$widget, 
-                        wrappers: ['accordion'],
-                        templateOptions: { label, path: itemPath } 
-                    } }
+                    widget: { formlyConfig: _.merge({ 
+                        templateOptions: <ITemplateOptions>{ label, path: itemPath } 
+                    }, schema.$widget || {}) }
                 },
                 model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
                         return { 
@@ -191,13 +198,12 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                 title: label, 
                 description: schema.description, 
                 properties: {},
-                widget: { formlyConfig: { type: schema.$widget, 
-                    wrappers: ['accordion'],
-                    templateOptions: { 
+                widget: { formlyConfig: _.merge({ 
+                    templateOptions: <ITemplateOptions>{ 
                         label, 
                         path: itemPath,
                     } 
-                } }
+                }, schema.$widget || {}) }
             };
             const properties = schema.properties ? { ...schema.properties } : {};
             if (schema.patternProperties && isObject(value)) {
@@ -220,28 +226,27 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
                     safeSchema.properties[propKey] = sanitized.schema;
                     safeObj[propKey] = sanitized.model;
-                    safeSchema.properties[propKey].disabled = !(await this.checkAllowed(properties[prop], value))
+                    safeSchema.properties[propKey].disabled = !(await this.checkAllowed(properties[prop], value));
                 } else {
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: value && value[prop], parentPath });
                     safeSchema.properties[prop] = sanitized.schema;
                     safeObj[prop] = sanitized.model;
-                    safeSchema.properties[prop].disabled = !(await this.checkAllowed(properties[prop], value))
+                    safeSchema.properties[prop].disabled = !(await this.checkAllowed(properties[prop], value)) || properties[prop].readOnly;
                 }
             }
             return { schema: safeSchema, model: safeObj || {} };
         } else if (schema.type === 'string' && (schema.format === 'date' || schema.format === 'date-time')) {
-            schema.$widget = schema.$widget || 'datepicker';
+            schema.$widget = _.merge( { type: 'datepicker' }, schema.$widget || {}) ;
         }
 
         const schema2 = {
             ...schema,
             widget: { 
-                formlyConfig: { 
-                    type: schema.$widget, 
-                    templateOptions: { 
+                formlyConfig: _.merge({ 
+                    templateOptions: <ITemplateOptions>{ 
                         label: await this.getName({ itemPath, value, schema, parentPath})
                     } 
-                }
+                }, schema.$widget || {})
             } 
         };
 
@@ -261,6 +266,9 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             value,
             parentPath: entryPointInfo?.parentPath
         });
+        if (sanitized?.schema?.widget?.formlyConfig?.templateOptions) {
+            sanitized.schema.widget.formlyConfig.templateOptions.expanded = true;
+        }
         return {
             type: 'form',
             path: itemPath,
