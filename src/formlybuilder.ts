@@ -3,7 +3,6 @@
 import { isObject } from 'lodash';
 import { Action, IProperty, IProxyInfo, IDispatchOptions } from 'autoinquirer/build/interfaces';
 import { Dispatcher } from 'autoinquirer';
-import { evalExpr } from 'autoinquirer/build/utils';
 import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
 import { IDataRenderer, AbstractDispatcher, AbstractDataSource } from 'autoinquirer/build/datasource';
@@ -74,11 +73,6 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             await this.makeForm(options)
         ] };
         //return this.evaluate(methodName, itemPath, schema, value);
-    }
-
-    private async checkAllowed(schema: IProperty, parentValue: any): Promise<boolean> {
-        if (!schema || !schema.depends) { return true; }
-        return parentValue ? !!evalExpr(schema.depends, parentValue) : true;
     }
 
     private async getEnumValues(options: IDispatchOptions)
@@ -166,7 +160,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     },
                     widget: { formlyConfig: _.merge({ 
                         templateOptions: <ITemplateOptions>{ label, path: itemPath } 
-                    }, schema.$widget || {}) }
+                    }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
                 },
                 model
             }
@@ -183,7 +177,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     },
                     widget: { formlyConfig: _.merge({ 
                         templateOptions: <ITemplateOptions>{ label, path: itemPath } 
-                    }, schema.$widget || {}) }
+                    }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
                 },
                 model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
                         return { 
@@ -203,7 +197,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                         label, 
                         path: itemPath,
                     } 
-                }, schema.$widget || {}) }
+                }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
             };
             const properties = schema.properties ? { ...schema.properties } : {};
             if (schema.patternProperties && isObject(value)) {
@@ -226,17 +220,15 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
                     safeSchema.properties[propKey] = sanitized.schema;
                     safeObj[propKey] = sanitized.model;
-                    safeSchema.properties[propKey].disabled = !(await this.checkAllowed(properties[prop], value));
                 } else {
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: value && value[prop], parentPath });
                     safeSchema.properties[prop] = sanitized.schema;
                     safeObj[prop] = sanitized.model;
-                    safeSchema.properties[prop].disabled = !(await this.checkAllowed(properties[prop], value)) || properties[prop].readOnly;
                 }
             }
             return { schema: safeSchema, model: safeObj || {} };
         } else if (schema.type === 'string' && (schema.format === 'date' || schema.format === 'date-time')) {
-            schema.$widget = _.merge( { type: 'datepicker' }, schema.$widget || {}) ;
+            schema.$widget = _.merge( { type: 'datepicker' }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) ;
         }
 
         const schema2 = {
@@ -246,7 +238,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     templateOptions: <ITemplateOptions>{ 
                         label: await this.getName({ itemPath, value, schema, parentPath})
                     } 
-                }, schema.$widget || {})
+                }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {})
             } 
         };
 
