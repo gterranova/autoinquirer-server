@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Action } from 'autoinquirer/build/interfaces';
+import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
 import { FormlyRenderer } from './formlybuilder';
 
 export const apiRoutes = (renderer: FormlyRenderer) => {
@@ -15,13 +15,14 @@ export const apiRoutes = (renderer: FormlyRenderer) => {
       DELETE: Action.DEL
     })[req.method];
     const uri = decodeURI(req.path.slice(1));
+    const user = (<any>req).user?.uid ? await renderer.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `/auth/users/${(<any>req).user.uid}`}) : null;
     let fn: Promise<any>;
     if (req.query.schema) {
       fn = renderer.getSchema({ itemPath: uri});
     } else if (action !== Action.GET) {
-      fn = renderer.dispatch(action, { itemPath: uri, value: req.body });
+      fn = renderer.dispatch(action, <IDispatchOptions>{ itemPath: uri, value: req.body, user });
     } else {
-      fn = renderer.render(action, { itemPath: uri, value: undefined });
+      fn = renderer.render(action, <IDispatchOptions>{ itemPath: uri, value: undefined, user });
     }
     
     try {

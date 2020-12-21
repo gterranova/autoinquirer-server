@@ -48,17 +48,28 @@ export function absolute(testPath: string, absolutePath: string): string {
 
 export class FormlyRenderer extends Dispatcher implements IDataRenderer {
 
-    private async makeBreadcrumb(options?: IDispatchOptions): Promise<any> {
+    private async makeAuth(options?: IDispatchOptions): Promise<any> {
         const pathParts = options.itemPath.split('/');
         return {
-            type: 'breadcrumb',
+            type: 'auth',
             path: options.itemPath,
-            items: pathParts? await Promise.all( pathParts.map( async (_p, idx) => {
-                const value = pathParts.slice(0, idx+1).join('/');
+            model: (<any>options).user
+        };
+    }
+
+    private async makeBreadcrumb(options?: IDispatchOptions): Promise<any> {
+        const parts = options.itemPath.split('/');
+        const { dataSource } = await this.getDataSourceInfo({ itemPath: options.itemPath });
+        const path = parts[parts.length-1];
+        const [cursor, pathParts] = await Promise.all([
+            dataSource.convertObjIDToIndex(path, options.itemPath.slice(0, options.itemPath.length - path.length -1)),
+            Promise.all( parts.map( async (_p, idx) => {
+                const value = parts.slice(0, idx+1).join('/');
                 const { entryPointInfo } = await this.getDataSourceInfo({ itemPath: value });
                 return { value, label: (await this.getName({itemPath: value, parentPath: entryPointInfo?.parentPath })).trim() };
-            })): []
-        };
+            }))
+        ]);
+        return { type: 'breadcrumb', pathParts, ...cursor };
     }
 
     public async render(methodName: string, options?: IDispatchOptions): Promise<any> {
@@ -69,6 +80,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         options.value = await this.dispatch(methodName, options);
 
         return { components: [
+            //await this.makeAuth(options),
             await this.makeBreadcrumb(options),
             await this.makeForm(options)
         ] };
@@ -91,8 +103,17 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         const newPath = (dataSource instanceof AbstractDispatcher && entryPointInfo?.parentPath) ?
             await dataSource.convertPathToUri(dataPath.replace(entryPointInfo.parentPath, '').replace(/^\//,'')) :
             dataPath;
+        let values = (await dataSource.dispatch('get', { itemPath: newPath }) || []);
+        if (property?.$data?.filterBy) {
+            values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
+        } 
+        if (property?.$data?.orderBy) {
+            const order = _.zip(...property.$data.orderBy.map( o => /^!/.test(o)? [o.slice(1), 'desc'] : [o, 'asc']));
+            //console.log(order)
+            values = _.orderBy(values, order[0], order[1]);
+        } 
 
-        return { dataSource, entryPointInfo, values: (await dataSource.dispatch('get', { itemPath: newPath }) || []) };
+        return { dataSource, entryPointInfo, values };
     }
 
     private async sanitizeJson(options: IDispatchOptions) {
@@ -107,25 +128,28 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             let $schema = await this.getSchema({ itemPath: dataPath });
             $schema = $schema?.items || $schema;
             const enumValues = await this.getEnumValues(options);
+            const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy]} } : () => {};
             const enumOptions = !property.enum? await Promise.all(enumValues.values.map(async (value: any) => {
                 const finalPath = (enumValues?.entryPointInfo?.parentPath ? `${enumValues.entryPointInfo.parentPath}/`: '') +(value._fullPath || `${dataPath}/${value._id || value}`);
                 return { 
                     label: isObject(value)? await this.getName({ itemPath: value._fullPath || `${dataPath}/${value._id || value}`, value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath}): value,
                     value: value._fullPath || `${dataPath}/${value._id || value}`,
-                    path: finalPath
+                    path: finalPath,
+                    disabled: itemPath.startsWith(finalPath), 
+                    ...group(value)
                 };
             })): undefined;
             const item = {
                 schema: {
                     type: multiple ? "array": "string", 
-                    title: label,
+                    title: schema.title,
                     enum: enumOptions?.map( (i: any) => i.value || i) || enumValues.values,
                     description: schema.description, 
-                    widget: { formlyConfig: { 
+                    widget: { formlyConfig: _.merge({ 
                         type: 'select', 
                         wrappers: [single && !property.enum ? 'form-field-link': 'form-field'],
-                        templateOptions: <ITemplateOptions>{ label, multiple, options: enumOptions } 
-                    } }
+                        templateOptions: <ITemplateOptions>{ multiple, options: enumOptions, groupBy: property?.$data?.groupBy } 
+                    }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
                 },
                 model: value || (multiple? []: ''),
             };
@@ -153,13 +177,13 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     type: 'array', 
                     title: label, 
                     description: schema.description, 
-                    readOnly: schema.readOnly,
+                    readOnly: false,
                     items: {
                         type: 'object',
                         properties: { name: { type: 'string' }, path: { type: 'string' } }
                     },
                     widget: { formlyConfig: _.merge({ 
-                        templateOptions: <ITemplateOptions>{ label, path: itemPath } 
+                        templateOptions: <ITemplateOptions>{ label, path: itemPath, readonly: true } 
                     }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
                 },
                 model
@@ -191,6 +215,8 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                 type: 'object', 
                 title: label, 
                 description: schema.description, 
+                required: schema.required,
+                readOnly: schema.readOnly, 
                 properties: {},
                 widget: { formlyConfig: _.merge({ 
                     templateOptions: <ITemplateOptions>{ 
@@ -213,16 +239,18 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             }
 
             for (let prop of Object.keys(properties)) {
+                if (properties[prop].$visible === false) continue;
+                
                 if (properties[prop].type === 'object' || properties[prop].type === 'array' || 
                     this.isSelect(properties[prop]) || this.isCheckBox(properties[prop])) {
                     const defaultValue = properties[prop].type === 'object'? {} : (this.isSelect(properties[prop])? '': []);
                     const propKey = properties[prop].type === 'array' && !this.isCheckBox(properties[prop]) ? `_${prop}` : prop;
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
-                    safeSchema.properties[propKey] = sanitized.schema;
+                    safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly };
                     safeObj[propKey] = sanitized.model;
                 } else {
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: value && value[prop], parentPath });
-                    safeSchema.properties[prop] = sanitized.schema;
+                    safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly };
                     safeObj[prop] = sanitized.model;
                 }
             }
@@ -262,7 +290,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             sanitized.schema.widget.formlyConfig.templateOptions.expanded = true;
         }
         return {
-            type: 'form',
+            type: sanitized?.schema?.widget?.formlyConfig?.componentType || 'form',
             path: itemPath,
             ...sanitized
         };
@@ -283,8 +311,8 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         if (schema?.$title && value) {
             let parent = {}, parentName = '';
             if (schema?.$title.indexOf('parent') !== -1 || schema?.$title.indexOf('parentName') !== -1) {
-                parent = await this.dispatch('get', {...options, itemPath: absolute('..', options.itemPath)});
-                parentName = await this.getName({itemPath: absolute('..', options.itemPath), value: parent, parentPath});
+                parent = await this.dispatch('get', {...options, itemPath: absolute('..', options.itemPath), schema: options.schema.$parent});
+                parentName = await this.getName({itemPath: absolute('..', options.itemPath), schema: options.schema.$parent, value: parent, parentPath});
             }
             const template = Handlebars.compile(schema.$title);
             label = template({...value, parent, parentName }).trim();

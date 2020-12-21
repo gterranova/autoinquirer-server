@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as bodyParser from 'body-parser';
 import * as logger from 'morgan';
 import * as cors from 'cors';
-//import * as expressJwt from 'express-jwt';
+import * as expressJwt from 'express-jwt';
 //import { adminRoutes } from './admin';
 //import { authRoutes } from './auth';
 import { apiRoutes } from './api';
@@ -16,6 +16,7 @@ import { FormlyRenderer } from './formlybuilder';
 //import { generateSitemap } from './sitemap';
 import * as SocketIO from 'socket.io';
 import { FileSystemDataSource } from './filesystem';
+import { AuthDataSource } from './auth';
 import { JsonDataSource, Dispatcher } from 'autoinquirer';
 
 var program = require('commander');
@@ -28,12 +29,13 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   const server = http.createServer(app) // io requires raw http
   const io = SocketIO(server) // Setup Socket.io's server
   const PORT = process.env.PORT || 4000;
-  const DIST_FOLDER = join(process.cwd(), 'dist');
+  const DIST_FOLDER = join(process.cwd(), 'dist', 'browser');
 
   const renderer = new FormlyRenderer(schemaFile, dataFile);
   renderer.registerProxy({ name: 'Dispatcher', classRef: Dispatcher });
   renderer.registerProxy({ name: 'JsonDataSource', classRef: JsonDataSource });
   renderer.registerProxy({ name: 'FileSystemDataSource', classRef: FileSystemDataSource });
+  renderer.registerProxy({ name: 'AuthDataSource', classRef: AuthDataSource });
 
   //renderer.registerProxy('filesystem', new FileSystemDataSource(DIST_FOLDER));
   await renderer.connect(); // jshint ignore:line
@@ -48,12 +50,16 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   app.use(bodyParser.json({ strict: false }));
   app.use(bodyParser.urlencoded({ extended: true }));
   app.use(logger('dev'));
-  //app.use(
-  //  expressJwt({
-  //    secret: config.secret,
-  //    credentialsRequired: false
-  //  })
-  //);
+  app.use(
+    expressJwt({
+      secret: 'secret',
+      credentialsRequired: false
+    }).unless({path: ['/auth/login']}),
+    function (err, req, res, next) {
+      if (err.code === 'invalid_token') return next();
+      return next(err);
+    }
+  );
 
   // Catch all other routes and return the index file
   //app.use('/admin', adminRoutes(ADMIN_FOLDER));
