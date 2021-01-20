@@ -16,6 +16,7 @@
   "license": "MIT",
   "dependencies": {
     "@types/socket.io": "^2.1.4",
+    "adm-zip": "^0.5.1",
     "autoinquirer": "file:../autoinquirer",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.19.0",
@@ -29,6 +30,7 @@
     "json-stringify-safe": "^5.0.1",
     "jsonwebtoken": "^8.5.1",
     "lodash": "^4.17.20",
+    "moment": "^2.29.1",
     "morgan": "^1.9.1",
     "socket.io": "^2.3.0"
   },

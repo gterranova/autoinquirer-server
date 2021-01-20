@@ -6,6 +6,8 @@ import { Dispatcher } from 'autoinquirer';
 import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
 import { IDataRenderer, AbstractDispatcher, AbstractDataSource } from 'autoinquirer/build/datasource';
+import { generate } from './custom';
+import { join } from 'path';
 
 // tslint:disable-next-line:no-any
 export interface ISelectOption {
@@ -48,13 +50,21 @@ export function absolute(testPath: string, absolutePath: string): string {
 
 export class FormlyRenderer extends Dispatcher implements IDataRenderer {
 
-    private async makeAuth(options?: IDispatchOptions): Promise<any> {
-        const pathParts = options.itemPath.split('/');
-        return {
-            type: 'auth',
-            path: options.itemPath,
-            model: (<any>options).user
-        };
+    private async makeRedirect(options?: IDispatchOptions): Promise<any> {
+        if (options.query.template) {
+            const template = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `/${options.value.template}` });
+            const generatedFilename = await generate(options.value, { 
+                template: template.content, 
+                reference: join(process.cwd(), template.reference),
+                toc: template.toc || false,
+                output: {
+                    path: join(process.cwd(), 'static'),
+                    filename: `${template.title}_${options.value.name}`, 
+                    format: template.format || 'docx'
+                }
+             });
+            return { type: 'redirect', url: `http://127.0.0.1:4000/static/${generatedFilename}`, target: '_blank' };
+        }
     }
 
     private async makeBreadcrumb(options?: IDispatchOptions): Promise<any> {
@@ -72,6 +82,16 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         return { type: 'breadcrumb', pathParts, ...cursor };
     }
 
+    public async sanitize(methodName: string, options?: IDispatchOptions): Promise<any> {
+        if (methodName === Action.EXIT) { return null; }
+        options = options || {};
+        options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
+        options.schema = options?.schema || await this.getSchema(options);
+        options.value = await this.dispatch(methodName, options);
+
+        return this.makeForm(options);
+    }
+
     public async render(methodName: string, options?: IDispatchOptions): Promise<any> {
         if (methodName === Action.EXIT) { return null; }
         options = options || {};
@@ -79,11 +99,16 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         options.schema = options?.schema || await this.getSchema(options);
         options.value = await this.dispatch(methodName, options);
 
-        return { components: [
-            //await this.makeAuth(options),
-            await this.makeBreadcrumb(options),
-            await this.makeForm(options)
-        ] };
+        if (options.query.template) return await this.makeRedirect(options);
+
+        return { 
+            type: 'layout', 
+            children: [
+                //await this.makeAuth(options),
+                await this.makeBreadcrumb(options),
+                await this.makeForm(options)
+            ]
+        };
         //return this.evaluate(methodName, itemPath, schema, value);
     }
 
@@ -238,20 +263,20 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                 }
             }
 
-            for (let prop of Object.keys(properties)) {
-                if (properties[prop].$visible === false) continue;
-                
+            for (let prop of Object.keys(properties)) {                
                 if (properties[prop].type === 'object' || properties[prop].type === 'array' || 
                     this.isSelect(properties[prop]) || this.isCheckBox(properties[prop])) {
+                    if (properties[prop].$visible === false) continue;
                     const defaultValue = properties[prop].type === 'object'? {} : (this.isSelect(properties[prop])? '': []);
                     const propKey = properties[prop].type === 'array' && !this.isCheckBox(properties[prop]) ? `_${prop}` : prop;
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
-                    safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly };
                     safeObj[propKey] = sanitized.model;
+                    safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly };
                 } else {
                     const sanitized = await this.sanitizeJson({ itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: value && value[prop], parentPath });
-                    safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly };
                     safeObj[prop] = sanitized.model;
+                    if (properties[prop].$visible === false) continue;
+                    safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly };
                 }
             }
             return { schema: safeSchema, model: safeObj || {} };
@@ -339,7 +364,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         if (label && label.length > 100) {
             label = `${label.slice(0, 97)}...`;
         }
-        const result = label.replace(/\s*([A-Z]{2,})/g, " $1").replace(/\s*([A-Z][a-z])/g, " $1");
+        const result = label.replace(/\s*([A-Z]{2,})/g, " $1").replace(/\s*([A-Z][a-z])/g, " $1").trim();
         return result.charAt(0).toUpperCase() + result.slice(1);
     }
 

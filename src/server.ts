@@ -30,6 +30,7 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   const io = SocketIO(server) // Setup Socket.io's server
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist', 'browser');
+  const STATIC_FOLDER = join(process.cwd(), 'static');
 
   const renderer = new FormlyRenderer(schemaFile, dataFile);
   renderer.registerProxy({ name: 'Dispatcher', classRef: Dispatcher });
@@ -86,6 +87,15 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
     autoinquirer.run();
   });
   */
+  // Server static files from /browser
+  app.use(
+    '/static',
+    (req, res) => {
+      console.log(decodeURIComponent(req.url))
+      res.sendFile(join(STATIC_FOLDER, decodeURIComponent(req.url)));
+    }
+  );
+
   app.use('/api', apiRoutes(renderer));
 
   // Server static files from /browser
