@@ -1,0 +1,178 @@
+{
+    "type": "object",
+    "title": "Auth",
+    "properties": {
+        "me": {
+            "type": "object",
+            "$title": "{{email}}",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "title": "Email"
+                }
+            },
+            "readOnly": true,
+            "$visible": false
+        },
+        "login": {
+            "type": "object",
+            "$title": "{{email}}",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "title": "Email",
+                    "$widget": {
+                        "type": "email",
+                        "label": "Email",
+                        "required": true,
+                        "minLength": 3
+                    }
+                },
+                "password": {
+                    "type": "string",
+                    "title": "Password",
+                    "$widget": {
+                        "type": "password",
+                        "label": "Password",
+                        "required": true,
+                        "minLength": 3
+                    }                  
+                }
+            },
+            "required": [
+                "email",
+                "password"
+            ],
+            "writeOnly": true,
+            "$widget": {
+                "componentType": "auth-login",
+                "wrappers": [
+                    ""
+                ],
+                "hideLabel": true
+            },
+            "$visible": false
+        },
+        "register": {
+            "type": "object",
+            "$title": "{{email}}",
+            "writeOnly": true,
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "title": "Email",
+                    "$widget": {
+                        "type": "email",
+                        "label": "Email",
+                        "placeholder": "Enter a valid email address",
+                        "required": true,
+                        "minLength": 3
+                    }                    
+                },
+                "password": {
+                    "type": "string",
+                    "title": "Password",
+                    "$widget": {
+                        "type": "password",
+                        "label": "Password",
+                        "placeholder": "Must be at least 3 characters",
+                        "required": true,
+                        "minLength": 3
+                    }                  
+                },
+                "passwordConfirm": {
+                    "type": "string",
+                    "title": "Confirm Password",
+                    "$widget": {
+                        "type": "password",
+                        "label": "Confirm Password",
+                        "placeholder": "Please re-enter your password",
+                        "required": true
+                    }
+                }
+            },
+            "required": [
+                "email",
+                "password",
+                "passwordConfirm"
+            ],
+            "$widget": {
+                "componentType": "auth-register",
+                "wrappers": [
+                    ""
+                ],
+                "hideLabel": true
+            },
+            "$visible": false
+        },
+        "activate": {
+            "type": "object",
+            "$title": "Account Activation",
+            "writeOnly": true,
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "$widget": {
+                        "componentType": "auth-activate",
+                        "label": "Activation Code",
+                        "placeholder": "Enter a the activation code",
+                        "required": true,
+                        "minLength": 3
+                    }                    
+                },
+                "error": {
+                    "type": "string",
+                    "$visible": false
+                }
+            },
+            "required": [
+                "code"
+            ],
+            "$widget": {
+                "componentType": "auth-activate",
+                "wrappers": [
+                    ""
+                ],
+                "hideLabel": true
+            },
+            "$visible": false
+        },
+        "logout": {
+            "type": "boolean",
+            "title": "Logout",
+            "$widget": {
+                "componentType": "auth-logout",
+                "wrappers": [
+                    ""
+                ],
+                "hideLabel": true
+            },
+            "$visible": false
+        },
+        "users": {
+            "type": "array",
+            "title": "Users",
+            "items": {
+                "type": "object",
+                "$title": "{{email}}",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "title": "Email"
+                    }
+                },
+                "readOnly": true
+            }
+        },
+        "renew": {
+            "type": "object",
+            "title": "Renew",
+            "properties": {
+                "token": {
+                    "type": "string"
+                }
+            },
+            "$visible": false
+        }
+    }
+}

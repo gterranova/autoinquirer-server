@@ -22,7 +22,8 @@
             "autoinquirer": [
                 "../autoinquirer"
             ]
-        }
+        },
+        "resolveJsonModule": true
     },
     "exclude": [
         "node_modules",

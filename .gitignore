@@ -31,3 +31,6 @@ dist/
 examples/
 server/
 autoinquirer.code-workspace
+
+# Static/Generated files
+static/

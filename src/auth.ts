@@ -4,14 +4,8 @@ import * as _ from "lodash";
 
 import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions, IProperty, Action } from 'autoinquirer/build/interfaces';
-import { JsonDataSource } from 'autoinquirer';
-import { access } from 'fs';
-
-export interface UserElement {
-  _id?: string;
-  name: string;
-  password: string;
-};
+import { JsonDataSource, JsonSchema } from 'autoinquirer';
+import { join } from 'path';
 
 class AuthError extends Error {
   constructor(errors: string[]) {
@@ -26,14 +20,17 @@ class AuthError extends Error {
 
 export class AuthDataSource extends AbstractDataSource {
   private dataSource: AbstractDataSource;
+  private schemaSource: JsonSchema;
 
   constructor(data: string | AbstractDataSource) {
       super();
       this.dataSource = (typeof data === 'string') ? new JsonDataSource(data) : data;
+      this.schemaSource = new JsonSchema(join(__dirname, 'usersSchema.json'));
   }
 
   public async connect(): Promise<void> {
     await this.dataSource.connect();
+    await this.schemaSource.connect();
   }
   public async close(): Promise<void> {
     await this.dataSource.close();
@@ -44,7 +41,7 @@ export class AuthDataSource extends AbstractDataSource {
   }
 
   public getSchemaDataSource(_parentDataSource?: AbstractDataSource) {
-    return { ...this, get: (options) => this.getSchema(options) };
+    return this.schemaSource;
   }
 
   public getDataSource(_parentDispatcher?: AbstractDataSource): AbstractDataSource {
@@ -61,54 +58,11 @@ export class AuthDataSource extends AbstractDataSource {
     };
   }
 
+  // tslint:disable-next-line:no-reserved-keywords
   public async getSchema(options?: IDispatchOptions): Promise<IProperty> {
-    //console.log(`FILESYSTEM getSchema(itemPath: ${itemPath} ... parentPath?: ${parentPath}, params?: ${params})`);
-    const userSchema = {
-      type:"object", $title: "{{name}}",
-      properties:{
-        name:{ type: "string", title:"Name"},
-        password:{ type: "string", title:"Password"}
-      },
-      required: ['name', 'password']
-    };
-    const register = {
-      type:"object", $title: "{{name}}",
-      writeOnly: true,
-      properties:{ ...userSchema.properties,
-        password2:{ type: "string", title:"Confirm Password"}
-      },
-      required: [...userSchema.required, 'password2']
-    };
-    const login = {...userSchema,  writeOnly: true, $widget: { componentType: 'auth', wrappers: [''], hideLabel: true }};
-    const logout = { type: "boolean", title: "Logout" };
-    const me = { ...userSchema, 
-      properties: Object.keys(userSchema.properties).filter(p => p != 'password').reduce( (acc, v) => {acc[v] = userSchema.properties[v]; return acc;}, {}),
-      readOnly: true };
-    const users = { type: "array", title: "Users", items: me };
-    //const createToken = userSchema;
-    const tokenRenew = { type: "object", title: "Renew", properties: { token: { type: "string" }}};
-    const schema = { type: "object", title: "Auth", properties: { users, register, login, logout, tokenRenew }, readOnly: true };
-    const info = this.getRequestInfo(options);
-    switch (info.action) {
-      case 'users':
-        if (info.userProp) {
-          return me.properties[info.userProp];
-        } else if (info.userId) {
-            return {...me, readOnly: undefined};
-        }
-        return users;
-      case 'register':
-          return register;  
-      case 'login':
-          return login;  
-      case 'renew':
-          return tokenRenew;
-      case 'logout':
-        return logout;    
-      case 'me':
-        return me;
-    }
-    return schema;
+    const { parentPath, itemPath} = options;
+    const newPath = [parentPath, itemPath].filter( p => p?.length).join('/');
+    return await this.getDataSource().get({ itemPath: newPath });
   }
 
   public async get(options?: IDispatchOptions): Promise<any> {
@@ -128,18 +82,10 @@ export class AuthDataSource extends AbstractDataSource {
     }
 
     if (options.value && info.action === 'register') {
-      const { name, password } = options.value;
-      const user = (await this.dataSource.get({ itemPath: 'users' } )).find(u => u.name === name);
-      if (user) throw new AuthError([`Name '${name}' is already taken`]);
-      return await this.dataSource.dispatch(Action.PUSH, { itemPath: 'users', value: { name, password: bcrypt.hashSync(password, 5) }} );
-    }
-
-    if (options.value && info.action === 'login') {
-      const user = (await this.dataSource.get({ itemPath: 'users' } )).find(
-        u =>
-          u.name === options.value.name &&
-          bcrypt.compareSync(options.value.password, u.password)
-      );
+      const { email, password } = options.value;
+      let user = (await this.dataSource.get({ itemPath: 'users' } )).find(u => u.email === email);
+      if (user) throw new AuthError([`Email '${email}' is already taken`]);
+      user = await this.dataSource.dispatch(Action.PUSH, { itemPath: 'users', value: { email, password: bcrypt.hashSync(password, 5), active: false, code: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) }} );
       if (user) {
         const token = jwt.sign({ uid: user._id }, 'secret', { expiresIn: 30 });
         return ({
@@ -147,7 +93,43 @@ export class AuthDataSource extends AbstractDataSource {
           token
         });
       }
-      throw new AuthError(['User does not exist']);
+      throw new AuthError(['Registration failed']);
+    }
+
+    if (options.value && info.action === 'login') {
+      const user = (await this.dataSource.get({ itemPath: 'users' } )).find(
+        u =>
+          u.email === options.value.email &&
+          bcrypt.compareSync(options.value.password, u.password)
+      );
+      if (user) {
+        if (!user.active) {
+          throw new AuthError(['You must first activate the account.']);    
+        }
+        const token = jwt.sign({ uid: user._id }, 'secret', { expiresIn: 30 });
+        return ({
+          uid: user._id,
+          token
+        });
+      }
+      throw new AuthError(['Login failed']);
+    }
+
+    if ((options.value || options.query?.code) && info.action === 'activate') {
+      const { code } = (options.value || options.query);
+      const isDirectLink = !!(options.query?.code);
+      if (!code) {
+        if (!isDirectLink) throw new AuthError(['No code provided']);
+        return { code: '', error: 'No code provided' };
+      }
+      let user = (await this.dataSource.get({ itemPath: 'users' } )).find(u => u.code === code);
+      if (!user) {
+        if (!isDirectLink) throw new AuthError(['Activation code is not valid']);
+        return { code, error: 'Activation code is not valid' };
+      }
+      user = { ...user, active: true, code: undefined };
+      await this.dataSource.dispatch(Action.SET, { itemPath: `users/${user._id}`, value: user } );
+      return { code };
     }
 
     if (options.value && info.action === 'renew') {
