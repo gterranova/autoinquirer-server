@@ -1,0 +1,39 @@
+{
+    "type": "array",
+    "$title": "{{dir}}",
+    "items": {
+        "type": "object",
+        "$title": "{{name}}",
+        "properties": {
+            "name": {
+                "type": "string",
+                "title": "Name"
+            },
+            "slug": {
+                "type": "string",
+                "title": "Slug",
+                "readOnly": true
+            },
+            "dir": {
+                "type": "string",
+                "title": "Dir",
+                "readOnly": true
+            },
+            "isFolder": {
+                "type": "boolean",
+                "title": "isFolder",
+                "readOnly": true
+            }
+        },
+        "$widget": {
+            "wrappers": [
+                "filesystem"
+            ]
+        }
+    },
+    "$widget": {
+        "wrappers": [
+            "filesystem"
+        ]
+    }
+}

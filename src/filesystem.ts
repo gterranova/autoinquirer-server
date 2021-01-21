@@ -5,7 +5,9 @@ import * as _ from "lodash";
 
 import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions, IProperty } from 'autoinquirer/build/interfaces';
-import { Dispatcher } from 'autoinquirer';
+import { JsonSchema } from 'autoinquirer';
+import { join } from 'path';
+
 
 function hash(key) {
   return crypto.pbkdf2Sync('secret', JSON.stringify(key), 100, 12, 'sha1').toString('hex');  // '3745e48...08d59ae'
@@ -26,14 +28,24 @@ interface IPathInfo {
   property?: string
 }
 
-export class FileSystemDataSource extends Dispatcher {
+export class FileSystemDataSource extends AbstractDataSource {
   rootDir: string;
+  private schemaSource: JsonSchema;
+
   constructor(rootDir?: string) {
-    super(null, null);
-    this.rootDir = rootDir || '.';
+    super();
+    console.log("constructor", rootDir);
+    this.rootDir = rootDir || process.cwd();
+    this.schemaSource = new JsonSchema(join(__dirname, 'filesystemSchema.json'));
   }
-  public async connect() { };
+  public async connect() {
+    await this.schemaSource.connect();
+   };
   public async close() { };
+
+  public async isMethodAllowed(methodName, options): Promise<Boolean> {
+    return true;
+  }
 
   getDataSource(_parentDataSource?: AbstractDataSource) {
     return this;
@@ -46,7 +58,7 @@ export class FileSystemDataSource extends Dispatcher {
   private getPathInfo(options?: IDispatchOptions) : IPathInfo {
     const fullPath = _.compact([
       ...this.rootDir.split(RegExp('\\|\/')), 
-      ...options?.params?.rootDir?.split(RegExp('\\|\/')), 
+      ...(options?.params?.rootDir || '').split(RegExp('\\|\/')), 
       ...options?.itemPath?.replace(RegExp(`^${options?.parentPath}[\\/|\\\\]?`), '').split(RegExp('\\|\/')) 
     ]).join('/');
 
@@ -94,23 +106,10 @@ export class FileSystemDataSource extends Dispatcher {
   }  
 
   public async getSchema(options?: IDispatchOptions): Promise<IProperty> {
-    //console.log(`FILESYSTEM getSchema(itemPath: ${itemPath} ... parentPath?: ${parentPath}, params?: ${params})`);
-    const fileSchema = {
-      type:"object", $title: "{{name}}",
-      properties:{
-        name:{ type: "string", title:"Name"},
-        slug:{ type: "string", title:"Slug", readOnly: true},
-        dir:{ type: "string", title:"Dir", readOnly: true},
-        isFolder:{ type: "boolean", title:"isFolder", readOnly: true}
-      },
-      $widget: { wrappers: ['filesystem'] }
-    };
-    const folderSchema = { type: "array", $title: "{{dir}}", items: fileSchema, $widget: { wrappers: ['filesystem'] } };
     const { filename, property } = this.getPathInfo(options);
-    if (!filename) {
-      return folderSchema
-    }
-    return property !== '' ? fileSchema.properties[property] : fileSchema;
+
+    //console.log(await this.schemaSource.get({ itemPath: [filename && '#', property].filter(e => !!e).join('/') }));
+    return this.schemaSource.get({ itemPath: [filename && '#', property].filter(e => !!e).join('/') });
   }
 
   public async get(options: IDispatchOptions): Promise<FileElement[]|FileElement> {
