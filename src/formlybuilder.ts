@@ -72,7 +72,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         const { dataSource } = await this.getDataSourceInfo({ itemPath: options.itemPath });
         const path = parts[parts.length-1];
         const [cursor, pathParts] = await Promise.all([
-            dataSource.convertObjIDToIndex(path, options.itemPath.slice(0, options.itemPath.length - path.length -1)),
+            dataSource.convertObjIDToIndex(path, options.itemPath.slice(0, options.itemPath.length - path.length)),
             Promise.all( parts.map( async (_p, idx) => {
                 const value = parts.slice(0, idx+1).join('/');
                 const { entryPointInfo } = await this.getDataSourceInfo({ itemPath: value });
