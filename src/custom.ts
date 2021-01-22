@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import * as moment from 'moment';
 import * as Handlebars from 'handlebars';
-import * as zlib from 'zlib';
+import { resolve } from 'path';
 import * as Zip from 'adm-zip';
 const { exec } = require('child_process');
 
@@ -465,7 +465,7 @@ export async function generate(data: any, options: any) { // jshint ignore:line
             } else {
                 cmd += ' -s';
             }
-            console.log(cmd)
+            //console.log(cmd)
             const result = await new Promise(function(resolve, reject) {
                 exec(cmd, (error, stdout) => {
                     if (error) {
@@ -483,10 +483,10 @@ export async function generate(data: any, options: any) { // jshint ignore:line
                 fs.unlinkSync(filenameFinal);
             }
             fs.unlinkSync(mdFile);
-            console.log(result);
+            //console.log(result);
         }
     }));
-    console.log(blocks.length)
+    //console.log(blocks.length)
     if (blocks.length>1) {
         zip.writeZip(outputFilename);
     }

@@ -7,7 +7,7 @@ import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
 import { IDataRenderer, AbstractDispatcher, AbstractDataSource } from 'autoinquirer/build/datasource';
 import { generate } from './custom';
-import { join } from 'path';
+import { join, resolve } from 'path';
 
 // tslint:disable-next-line:no-any
 export interface ISelectOption {
@@ -55,10 +55,10 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
             const template = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `/${options.value.template}` });
             const generatedFilename = await generate(options.value, { 
                 template: template.content, 
-                reference: join(process.cwd(), template.reference),
+                reference: resolve(process.cwd(), template.reference),
                 toc: template.toc || false,
                 output: {
-                    path: join(process.cwd(), 'static'),
+                    path: resolve(process.cwd(), 'static'),
                     filename: `${template.title}_${options.value.name}`, 
                     format: template.format || 'docx'
                 }
@@ -142,7 +142,8 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
     }
 
     private async sanitizeJson(options: IDispatchOptions) {
-        const { itemPath, schema, value, parentPath } = options;
+        const { itemPath, schema, parentPath } = options;
+        let { value } = options;
 
         const single = this.isSelect(schema);
         const multiple = this.isCheckBox(schema);
@@ -214,6 +215,17 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                 model
             }
         } else if (schema.type === 'array') {
+            const $order = schema.$orderBy || [];
+            if (schema.$groupBy) {
+                const group = (v) => { return { [`${schema.$groupBy}Id`]: v[schema.$groupBy]} };
+                value = value.map( v => { return {...v, ...group(v)}});
+                $order.unshift(schema.$groupBy);
+            }                
+            if ($order.length) {
+                const order = _.zip(...$order.map( o => /^!/.test(o)? [o.slice(1), 'desc'] : [o, 'asc']));
+                //console.log(order)
+                value = _.orderBy(value, order[0], order[1]);                    
+            }                
             return {
                 schema: {
                     type: 'array', 
@@ -225,13 +237,16 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                         properties: { name: { type: 'string' }, path: { type: 'string' } }
                     },
                     widget: { formlyConfig: _.merge({ 
-                        templateOptions: <ITemplateOptions>{ label, path: itemPath } 
+                        wrappers: schema.$groupBy && ['groups'],
+                        templateOptions: <ITemplateOptions>{ label, path: itemPath, groupBy: schema.$groupBy } 
                     }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
                 },
                 model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
                         return { 
                             name: await this.getName({ itemPath: `${itemPath}/${obj.slug || obj._id || idx}`, value: obj, schema: schema.items, parentPath}), 
-                            path: `${itemPath}/${obj.slug || obj._id || idx}` };
+                            path: `${itemPath}/${obj.slug || obj._id || idx}`,
+                            [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy]
+                        };
                 })) : []
             }
         } else if (schema.type === 'object') {
@@ -353,7 +368,7 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
                     return labelPart;
                 }))).join(' ').trim();
             }
-        } else if ((schema?.type === 'object' || schema?.type === 'array') && schema?.title) {
+        } else if (schema?.title) {
             label = schema.title;
         } /* else if (schema.type === 'array' && value && value.length && !key) {
             label = (await Promise.all(value.map(async i => await this.getName(i, key, schema.items)))).join(', ');
@@ -364,8 +379,9 @@ export class FormlyRenderer extends Dispatcher implements IDataRenderer {
         if (label && label.length > 100) {
             label = `${label.slice(0, 97)}...`;
         }
-        const result = label.replace(/\s*([A-Z]{2,})/g, " $1").replace(/\s*([A-Z][a-z])/g, " $1").trim();
-        return result.charAt(0).toUpperCase() + result.slice(1);
+        return label;
+        //const result = label.replace(/\s*([A-Z]{2,})/g, " $1").replace(/\s*([A-Z][a-z])/g, " $1").trim();
+        //return result.charAt(0).toUpperCase() + result.slice(1);
     }
 
     private isCheckBox(schema: IProperty): boolean {
