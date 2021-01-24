@@ -9,15 +9,14 @@ import * as expressJwt from 'express-jwt';
 //import { adminRoutes } from './admin';
 //import { authRoutes } from './auth';
 import { apiRoutes } from './api';
-import { FormlyRenderer } from './formlybuilder';
 
 //import { uploadRoutes } from './upload';
 //import { contactsRoutes } from './contacts';
 //import { generateSitemap } from './sitemap';
 import * as SocketIO from 'socket.io';
-import { FileSystemDataSource } from './filesystem';
-import { AuthDataSource } from './auth';
-import { JsonDataSource, Dispatcher } from 'autoinquirer';
+import { Dispatcher } from 'autoinquirer';
+import { transformers } from './transformers';
+import { proxies } from './proxies';
 
 var program = require('commander');
 
@@ -32,12 +31,10 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   const DIST_FOLDER = join(process.cwd(), 'dist', 'browser');
   const STATIC_FOLDER = join(process.cwd(), 'static');
 
-  const renderer = new FormlyRenderer(schemaFile, dataFile);
-  renderer.registerProxy({ name: 'Dispatcher', classRef: Dispatcher });
-  renderer.registerProxy({ name: 'JsonDataSource', classRef: JsonDataSource });
-  renderer.registerProxy({ name: 'FileSystemDataSource', classRef: FileSystemDataSource });
-  renderer.registerProxy({ name: 'AuthDataSource', classRef: AuthDataSource });
-
+  const renderer = new Dispatcher(schemaFile, dataFile);
+  renderer.registerProxies(proxies);
+  renderer.registerTransformers(transformers);
+  
   //renderer.registerProxy('filesystem', new FileSystemDataSource(DIST_FOLDER));
   await renderer.connect(); // jshint ignore:line
 

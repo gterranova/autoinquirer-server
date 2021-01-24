@@ -6,6 +6,8 @@ import { resolve } from 'path';
 import * as Zip from 'adm-zip';
 const { exec } = require('child_process');
 
+import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
+
 Handlebars.registerHelper("inc", (value, _) => {
     return parseInt(value) + 1;
 });
@@ -381,7 +383,7 @@ function constraints(data: any) {
 
 }
 
-export const lands = (data: any) => {
+const lands = (data: any) => {
     const allLand = _.cloneDeep(groupBySheet(_.cloneDeep(data)));
     const landsGroups = groupByOwnersAndSheet(_.cloneDeep(data));
     const challengeableGroups = groupByChallengeableOwnersAndSheet(_.cloneDeep(data));
@@ -399,7 +401,7 @@ export const lands = (data: any) => {
     }
 }
 
-export async function generate(data: any, options: any) { // jshint ignore:line
+async function generate(data: any, options: any) { // jshint ignore:line
     //console.log(program.args, schemaFile, dataFile, options.project, options.template, options.output)
 
     const template = Handlebars.compile(options.template);
@@ -494,4 +496,26 @@ export async function generate(data: any, options: any) { // jshint ignore:line
     //if (blocks.length>0) {
     //    console.log(Object.keys(blocks))
     //}
+}
+
+export async function template(methodName: string, options?: IDispatchOptions): Promise<any> {
+    options = options || {};
+    options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
+    options.schema = options?.schema || await this.getSchema(options);
+    options.value = options?.value || await this.dispatch(methodName, options);
+
+    if (options.value.template) {
+        const template = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${options.value.template}` });
+        const generatedFilename = await generate(options.value, { 
+            template: template.content, 
+            reference: resolve(process.cwd(), template.reference),
+            toc: template.toc || false,
+            output: {
+                path: resolve(process.cwd(), 'static'),
+                filename: `${template.title}_${options.value.name}`, 
+                format: template.format || 'docx'
+            }
+            });
+        return { type: 'redirect', url: `http://127.0.0.1:4000/static/${generatedFilename}`, target: '_blank' };    
+    }
 }

@@ -1,35 +1,24 @@
 import { Router } from 'express';
 import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
-import { FormlyRenderer } from './formlybuilder';
+import { Dispatcher } from 'autoinquirer';
+import { HttpMethodMap } from './constants';
 
-export const apiRoutes = (renderer: FormlyRenderer) => {
+export const apiRoutes = (renderer: Dispatcher) => {
   var apiRouter = Router();
 
   // Example Express Rest API endpoints
   apiRouter.use('', async (req, res, next) => {
-    const action: string = (<any>{
-      GET: Action.GET,
-      POST: Action.PUSH,
-      PUT: Action.SET,
-      PATCH: Action.UPDATE,
-      DELETE: Action.DEL
-    })[req.method];
+    const action: string = HttpMethodMap[req.method];
     const uri = decodeURI(req.path.slice(1));
     const user = (<any>req).user?.uid ? await renderer.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `/auth/users/${(<any>req).user.uid}` }) : null;
-    let fn: Promise<any>;
-    if (req.query.schema) {
-      fn = renderer.getSchema({ itemPath: uri});
-    } else if (action === Action.GET && req.query.render) {
-      fn = renderer.render(action, <IDispatchOptions>{ itemPath: uri, value: undefined, query: req.query, user });
-    } else if (action === Action.GET && req.query.sanitize) {
-      fn = renderer.sanitize(action, <IDispatchOptions>{ itemPath: uri, value: undefined, query: req.query, user });
-    } else {
-      fn = renderer.dispatch(action, <IDispatchOptions>{ itemPath: uri, value: req.body, query: req.query, user });
-    } 
-    
+    const reqTransformer = req.query['do'] && Array.isArray(req.query['do']) ? req.query['do'][0] : req.query['do'];
+    const transformer = renderer.getTransformer(reqTransformer) || renderer.dispatch.bind(renderer);
+    const value = Object.keys(req.body).length>0 && req.body;
+
+    const fn = transformer(action, <IDispatchOptions>{ itemPath: uri, value, query: req.query, user });
     try {
       return fn.then((data: any)=> {
-        if (!data) {
+        if (data === undefined || data === null) {
           res.statusCode = 404;
           res.send();
         } else {
