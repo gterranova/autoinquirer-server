@@ -66,7 +66,7 @@ async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
     const dataPath = absolute(property.$data.path, itemPath);
     const { dataSource, entryPointInfo } = await dispatcher.getDataSourceInfo({ itemPath: dataPath });
     const newPath = (dataSource instanceof AbstractDispatcher && entryPointInfo?.parentPath) ?
-        await dataSource.convertPathToUri(dataPath.replace(entryPointInfo.parentPath, '').replace(/^\//,'')) :
+        await dataSource.convertPathToUri(dataPath.replace(entryPointInfo.parentPath, '')) :
         dataPath;
     let values = (await dataSource.dispatch('get', { itemPath: newPath }) || []);
     if (property?.$data?.filterBy) {
@@ -96,10 +96,14 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         const enumValues = await getEnumValues(dispatcher, options);
         const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy]} } : () => {};
         const enumOptions = !property.enum? await Promise.all(enumValues.values.map(async (value: any) => {
-            const finalPath = (enumValues?.entryPointInfo?.parentPath ? `${enumValues.entryPointInfo.parentPath}/`: '') +(value._fullPath || `${dataPath}/${value._id || value}`);
+            const newPath = value._fullPath || _.compact([dataPath, value._id || value]).join('/');
+            const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
             return { 
-                label: isObject(value)? await getName(dispatcher, { itemPath: value._fullPath || `${dataPath}/${value._id || value}`, value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath}): value,
-                value: value._fullPath || `${dataPath}/${value._id || value}`,
+                label: isObject(value)? await getName(dispatcher, { 
+                    itemPath: newPath, 
+                    value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath
+                }): value,
+                value: newPath,
                 path: finalPath,
                 disabled: itemPath.startsWith(finalPath), 
                 ...group(value)
@@ -129,11 +133,17 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         $schema = $schema?.items || $schema;
         const enumValues = await getEnumValues(dispatcher, options);
         const model = (await Promise.all(enumValues.values
-            .filter( (v) => value.indexOf(v._fullPath || `${dataPath}/${v._id || v}`) !== -1)
+            .filter( (v) => value.indexOf(v._fullPath || _.compact([dataPath, v._id || v]).join('/')) !== -1)
             .map(async (value: any) => {
-                const finalPath = (enumValues?.entryPointInfo?.parentPath ? `${enumValues.entryPointInfo.parentPath}/`: '') +(value._fullPath || `${dataPath}/${value._id || value}`);
+                const newPath = value._fullPath || _.compact([dataPath, value._id || value]).join('/');
+                const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
             return { 
-                name: isObject(value)? await getName(dispatcher, { itemPath: value._fullPath || `${dataPath}/${value._id || value}`, value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath}): value,
+                name: isObject(value)? await getName(dispatcher, { 
+                    itemPath: newPath, 
+                    value, 
+                    schema: $schema, 
+                    parentPath: enumValues?.entryPointInfo?.parentPath
+                }): value,
                 path: finalPath,
             };
         }))) || [];
@@ -182,9 +192,10 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
             },
             model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
+                    const newPath = _.compact([itemPath, obj.slug || obj._id || idx]).join('/');
                     return { 
-                        name: await getName(dispatcher, { itemPath: `${itemPath}/${obj.slug || obj._id || idx}`, value: obj, schema: schema.items, parentPath}), 
-                        path: `${itemPath}/${obj.slug || obj._id || idx}`,
+                        name: await getName(dispatcher, { itemPath: newPath, value: obj, schema: schema.items, parentPath}), 
+                        path: newPath,
                         [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy]
                     };
             })) : []
@@ -224,11 +235,11 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 if (properties[prop].$visible === false) continue;
                 const defaultValue = properties[prop].type === 'object'? {} : (isSelect(properties[prop])? '': []);
                 const propKey = properties[prop].type === 'array' && !isCheckBox(properties[prop]) ? `_${prop}` : prop;
-                const sanitized = await sanitizeJson(dispatcher, { itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
+                const sanitized = await sanitizeJson(dispatcher, { itemPath: _.compact([itemPath, prop]).join('/'), schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
                 safeObj[propKey] = sanitized.model;
                 safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly };
             } else {
-                const sanitized = await sanitizeJson(dispatcher, { itemPath: `${itemPath}/${prop}`, schema: properties[prop], value: value && value[prop], parentPath });
+                const sanitized = await sanitizeJson(dispatcher, { itemPath: _.compact([itemPath, prop]).join('/'), schema: properties[prop], value: value && value[prop], parentPath });
                 safeObj[prop] = sanitized.model;
                 if (properties[prop].$visible === false) continue;
                 safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly };

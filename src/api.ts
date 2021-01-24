@@ -10,7 +10,7 @@ export const apiRoutes = (renderer: Dispatcher) => {
   apiRouter.use('', async (req, res, next) => {
     const action: string = HttpMethodMap[req.method];
     const uri = decodeURI(req.path.slice(1));
-    const user = (<any>req).user?.uid ? await renderer.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `/auth/users/${(<any>req).user.uid}` }) : null;
+    const user = (<any>req).user?.uid ? await renderer.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `auth/users/${(<any>req).user.uid}` }) : null;
     const reqTransformer = req.query['do'] && Array.isArray(req.query['do']) ? req.query['do'][0] : req.query['do'];
     const transformer = renderer.getTransformer(reqTransformer) || renderer.dispatch.bind(renderer);
     const value = Object.keys(req.body).length>0 && req.body;

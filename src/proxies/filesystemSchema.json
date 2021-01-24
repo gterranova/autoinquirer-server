@@ -1,6 +1,6 @@
 {
     "type": "array",
-    "$title": "{{dir}}",
+    "$title": "{{#ifeq options.itemPath 'filesystem'}}Files{{else}}{{key}}{{/ifeq}}",
     "items": {
         "type": "object",
         "$title": "{{name}}",
@@ -27,13 +27,13 @@
         },
         "$widget": {
             "wrappers": [
-                "filesystem"
+                "accordion"
             ]
         }
     },
     "$widget": {
         "wrappers": [
-            "filesystem"
+            "accordion"
         ]
     }
 }

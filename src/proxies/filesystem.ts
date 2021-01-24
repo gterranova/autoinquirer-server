@@ -86,7 +86,6 @@ export class FileSystemDataSource extends AbstractDataSource {
   private getFiles(pathInfo: IPathInfo) : FileElement[] {
     const { fullPath, folder, filename } = pathInfo;
     if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
-      //console.log(`FILES in ${dir}: currentPath ${currentPath} - remainingPath ${remainingPath}`);
       return _.sortBy(fs.readdirSync(fullPath, { withFileTypes: true }).map((element) => {
         return {
           name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
@@ -114,7 +113,7 @@ export class FileSystemDataSource extends AbstractDataSource {
 
   public async get(options: IDispatchOptions): Promise<FileElement[]|FileElement> {
     //console.log(`FILESYSTEM get(itemPath: ${itemPath}, schema: ${JSON.stringify(schema)}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
-    const { fullPath, folder, filename, property } = this.getPathInfo(options);;
+    const { fullPath, folder, filename, property } = this.getPathInfo(options);
     const files = this.getFiles({ fullPath, folder, filename, property });
     //console.log(`FILES = "${JSON.stringify(files, null, 2)}"`)
     if (filename) {

@@ -40,9 +40,9 @@ export async function getName(dispatcher: Dispatcher, options: IDispatchOptions)
     const {value, schema, parentPath=''} = options;
     const key = options.itemPath.split('/').pop();
     let label = '';
-    if (value && schema?.$data?.path) {
-        return await getName(dispatcher, {itemPath: `${parentPath}${parentPath?'/':''}${value}`, parentPath});
-    }
+    //if (value && schema?.$data?.path) {
+    //    return await getName(dispatcher, {itemPath: `${parentPath}${parentPath?'/':''}${value}`, parentPath});
+    //}
     if (schema?.$title && value) {
         let parent = {}, parentName = '';
         if (schema?.$title.indexOf('parent') !== -1 || schema?.$title.indexOf('parentName') !== -1) {
@@ -50,7 +50,7 @@ export async function getName(dispatcher: Dispatcher, options: IDispatchOptions)
             parentName = await getName(dispatcher, {itemPath: absolute('..', options.itemPath), schema: options.schema.$parent, value: parent, parentPath});
         }
         const template = Handlebars.compile(schema.$title);
-        label = template({...value, parent, parentName }).trim();
+        label = template({parent, parentName, options, key, ...value }).trim();
         if (label && label.indexOf('/')) {
             label = (await Promise.all(label.split(' ').map(async labelPart => {
                 if (labelPart && labelPart.indexOf('/') > 3) {
@@ -63,13 +63,12 @@ export async function getName(dispatcher: Dispatcher, options: IDispatchOptions)
                 return labelPart;
             }))).join(' ').trim();
         }
-    } else if (schema?.title) {
-        label = schema.title;
     } /* else if (schema.type === 'array' && value && value.length && !key) {
         label = (await Promise.all(value.map(async i => await this.getName(i, key, schema.items)))).join(', ');
     }*/
     if (!label) {
-        label = (value && (value.title || value.name)) || key.toString() || `[${schema.type}]`;
+        //console.log("GetName", options, `"${value}"`)
+        label = schema?.title || (value && (value.title || value.name)) || key.toString() || `[${schema.type}]`;
     }
     if (label && label.length > 100) {
         label = `${label.slice(0, 97)}...`;
