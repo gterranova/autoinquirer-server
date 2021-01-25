@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import * as moment from 'moment';
 import * as Handlebars from 'handlebars';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
 import * as Zip from 'adm-zip';
 const { exec } = require('child_process');
 
@@ -506,9 +506,11 @@ export async function template(methodName: string, options?: IDispatchOptions): 
 
     if (options.value.template) {
         const template = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${options.value.template}` });
+        const reference = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${template.reference}` });
+        const referenceFilename = resolve(process.cwd(), join(reference.dir, reference.name));
         const generatedFilename = await generate(options.value, { 
             template: template.content, 
-            reference: resolve(process.cwd(), template.reference),
+            reference: referenceFilename,
             toc: template.toc || false,
             output: {
                 path: resolve(process.cwd(), 'static'),
