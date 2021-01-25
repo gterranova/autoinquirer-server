@@ -25,7 +25,8 @@ export class AuthDataSource extends AbstractDataSource {
   constructor(data: string | AbstractDataSource) {
       super();
       this.dataSource = (typeof data === 'string') ? new JsonDataSource(data) : data;
-      this.schemaSource = new JsonSchema(join(__dirname, 'usersSchema.json'));
+      // JSONSCHEMA data relative to package dir
+      this.schemaSource = new JsonSchema(join('.', 'src', 'proxies', 'usersSchema.json'));
   }
 
   public async connect(): Promise<void> {

@@ -34,9 +34,10 @@ export class FileSystemDataSource extends AbstractDataSource {
 
   constructor(rootDir?: string) {
     super();
-    console.log("constructor", rootDir);
+    //console.log("constructor", rootDir);
     this.rootDir = rootDir || process.cwd();
-    this.schemaSource = new JsonSchema(join(__dirname, 'filesystemSchema.json'));
+    // JSONSCHEMA data relative to package dir
+    this.schemaSource = new JsonSchema(join('.', 'src', 'proxies', 'filesystemSchema.json'));
   }
   public async connect() {
     await this.schemaSource.connect();
@@ -61,7 +62,7 @@ export class FileSystemDataSource extends AbstractDataSource {
       ...(options?.params?.rootDir || '').split(RegExp('\\|\/')), 
       ...options?.itemPath?.replace(RegExp(`^${options?.parentPath}[\\/|\\\\]?`), '').split(RegExp('\\|\/')) 
     ]).join('/');
-
+    
     if (!fullPath) return {};
     const pathParts = fullPath.split('/');
     let folder = '.', filename = '', properties = [], idx = 0;
