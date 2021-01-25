@@ -1,4 +1,4 @@
-import { Dispatcher } from 'autoinquirer';
+import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions } from 'autoinquirer/build/interfaces';
 import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
@@ -31,7 +31,7 @@ export function absolute(testPath: string, absolutePath: string): string {
     return p0.join('/');
 }
 
-export async function getName(dispatcher: Dispatcher, options: IDispatchOptions): Promise<string> {
+export async function getName(dispatcher: AbstractDataSource, options: IDispatchOptions): Promise<string> {
     options = options || {};
     options.itemPath = options?.itemPath || ''; // await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await dispatcher.getSchema(options);

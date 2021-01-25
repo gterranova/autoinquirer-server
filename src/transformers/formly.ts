@@ -65,8 +65,8 @@ async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
     }
     const dataPath = absolute(property.$data.path, itemPath);
     const { dataSource, entryPointInfo } = await dispatcher.getDataSourceInfo({ itemPath: dataPath });
-    const newPath = (dataSource instanceof AbstractDispatcher && entryPointInfo?.parentPath) ?
-        await dataSource.convertPathToUri(dataPath.replace(entryPointInfo.parentPath, '')) :
+    const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
+        await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
         dataPath;
     let values = (await dataSource.dispatch('get', { itemPath: newPath }) || []);
     if (property?.$data?.filterBy) {
@@ -77,7 +77,6 @@ async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
         //console.log(order)
         values = _.orderBy(values, order[0], order[1]);
     } 
-
     return { dataSource, entryPointInfo, values };
 }
 
@@ -96,14 +95,16 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         const enumValues = await getEnumValues(dispatcher, options);
         const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy]} } : () => {};
         const enumOptions = !property.enum? await Promise.all(enumValues.values.map(async (value: any) => {
-            const newPath = value._fullPath || _.compact([dataPath, value._id || value]).join('/');
+            // this should make it work with filesystem-like refs
+            const newPath = value._fullPath || _.compact([(enumValues?.entryPointInfo?.objPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
             const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
+            //console.log(enumValues?.entryPointInfo, dataPath, newPath, finalPath);
             return { 
-                label: isObject(value)? await getName(dispatcher, { 
+                label: isObject(value)? await getName((enumValues?.dataSource || dispatcher), { 
                     itemPath: newPath, 
                     value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath
                 }): value,
-                value: newPath,
+                value: finalPath/* newPath */,
                 path: finalPath,
                 disabled: itemPath.startsWith(finalPath), 
                 ...group(value)
