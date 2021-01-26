@@ -5,7 +5,7 @@ import * as _ from "lodash";
 import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions, IProperty, Action } from 'autoinquirer/build/interfaces';
 import { JsonDataSource, JsonSchema } from 'autoinquirer';
-import { join } from 'path';
+import * as authSchema from './usersSchema.json';
 
 class AuthError extends Error {
   constructor(errors: string[]) {
@@ -26,7 +26,7 @@ export class AuthDataSource extends AbstractDataSource {
       super();
       this.dataSource = (typeof data === 'string') ? new JsonDataSource(data) : data;
       // JSONSCHEMA data relative to package dir
-      this.schemaSource = new JsonSchema(join('.', 'src', 'proxies', 'usersSchema.json'));
+      this.schemaSource = new JsonSchema(authSchema);
   }
 
   public async connect(): Promise<void> {

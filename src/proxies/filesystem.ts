@@ -6,7 +6,7 @@ import * as _ from "lodash";
 import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions, IProperty } from 'autoinquirer/build/interfaces';
 import { JsonSchema } from 'autoinquirer';
-import { join } from 'path';
+import * as filesystemSchema from './filesystemSchema.json';
 
 
 function hash(key) {
@@ -37,7 +37,7 @@ export class FileSystemDataSource extends AbstractDataSource {
     //console.log("constructor", rootDir);
     this.rootDir = rootDir || process.cwd();
     // JSONSCHEMA data relative to package dir
-    this.schemaSource = new JsonSchema(join('.', 'src', 'proxies', 'filesystemSchema.json'));
+    this.schemaSource = new JsonSchema(filesystemSchema);
   }
   public async connect() {
     await this.schemaSource.connect();
