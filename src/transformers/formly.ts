@@ -68,7 +68,7 @@ async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
     const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
         await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
         dataPath;
-    let values = (await dataSource.dispatch('get', { itemPath: newPath }) || []);
+    let values = (await dataSource.dispatch('get', { itemPath: newPath, params: entryPointInfo?.proxyInfo?.params }) || []);
     if (property?.$data?.filterBy) {
         values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
     } 
@@ -106,6 +106,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 }): value,
                 value: finalPath/* newPath */,
                 path: finalPath,
+                resourceUrl: value.resourceUrl,
                 disabled: itemPath.startsWith(finalPath), 
                 ...group(value)
             };
@@ -118,8 +119,8 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 description: schema.description, 
                 widget: { formlyConfig: _.merge({ 
                     type: 'select', 
-                    wrappers: [single && !property.enum ? 'form-field-link': 'form-field'],
-                    templateOptions: <ITemplateOptions>{ multiple, options: enumOptions, groupBy: property?.$data?.groupBy } 
+                    wrappers: _.compact([single && !property.enum && 'form-field-link', 'form-field']),
+                    templateOptions: <ITemplateOptions>{ label, multiple, options: enumOptions, groupBy: property?.$data?.groupBy } 
                 }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
             },
             model: value || (multiple? []: ''),
@@ -197,7 +198,8 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                     return { 
                         name: await getName(dispatcher, { itemPath: newPath, value: obj, schema: schema.items, parentPath}), 
                         path: newPath,
-                        [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy]
+                        [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy],
+                        resourceUrl: obj.resourceUrl
                     };
             })) : []
         }
@@ -243,7 +245,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 const sanitized = await sanitizeJson(dispatcher, { itemPath: _.compact([itemPath, prop]).join('/'), schema: properties[prop], value: value && value[prop], parentPath });
                 safeObj[prop] = sanitized.model;
                 if (properties[prop].$visible === false) continue;
-                safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly };
+                safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly || properties[prop].readOnly };
             }
         }
         return { schema: safeSchema, model: safeObj || {} };

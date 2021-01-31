@@ -23,6 +23,11 @@
                 "type": "boolean",
                 "title": "isFolder",
                 "readOnly": true
+            },
+            "resourceUrl": {
+                "type": "string",
+                "title": "Resource URL",
+                "readOnly": true
             }
         },
         "$widget": {
@@ -33,7 +38,7 @@
     },
     "$widget": {
         "wrappers": [
-            "accordion"
+            "filesystem"
         ]
     }
 }

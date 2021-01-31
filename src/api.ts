@@ -2,9 +2,47 @@ import { Router } from 'express';
 import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
 import { Dispatcher } from 'autoinquirer';
 import { HttpMethodMap } from './constants';
+import { IncomingForm } from 'formidable';
+import { join } from 'path';
 
 export const apiRoutes = (renderer: Dispatcher) => {
   var apiRouter = Router();
+
+  apiRouter.use('', async (req, res, next) => {
+    if (req.method.toLowerCase() !== 'post' || !req.headers['content-type'].startsWith('multipart/form-data')) {
+      return next();
+    }
+
+    // parse a file upload
+    let form = new IncomingForm();
+  
+    /**
+     * Options
+     */
+    form = Object.assign(form, {
+      multiples: true,
+      keepExtensions: true,
+      encoding: 'utf-8',
+      type: 'multipart', // or urlencoded
+      maxFieldsSize: 20 * 1024 * 1024, // default = 20 * 1024 * 1024 = 20mb
+      maxFields: 1000, // Max files & fields - default = 1000
+      hash: false, // sha1, md5 or false
+    });
+    console.log(req.method.toLowerCase(), req.body);
+    (<any>req).files = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(files);
+      });
+    }).catch((reason: any) => {
+      console.error(reason);
+      res.statusCode = 400;
+      return res.send(reason);
+    });
+    return next();
+  });
 
   // Example Express Rest API endpoints
   apiRouter.use('', async (req, res, next) => {
@@ -14,8 +52,8 @@ export const apiRoutes = (renderer: Dispatcher) => {
     const reqTransformer = req.query['do'] && Array.isArray(req.query['do']) ? req.query['do'][0] : req.query['do'];
     const transformer = renderer.getTransformer(reqTransformer) || renderer.dispatch.bind(renderer);
     const value = Object.keys(req.body).length>0 && req.body;
-
-    const fn = transformer(action, <IDispatchOptions>{ itemPath: uri, value, query: req.query, user });
+    const files = (<any>req).files;
+    const fn = transformer(action, <IDispatchOptions>{ itemPath: uri, value, query: req.query, files, user });
     try {
       return fn.then((data: any)=> {
         if (data === undefined || data === null) {

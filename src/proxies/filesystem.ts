@@ -2,11 +2,13 @@ import * as fs from "fs";
 //import * as del from "delete";
 import * as crypto from 'crypto';
 import * as _ from "lodash";
+import { join } from 'path';
 
 import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions, IProperty } from 'autoinquirer/build/interfaces';
 import { JsonSchema } from 'autoinquirer';
 import * as filesystemSchema from './filesystemSchema.json';
+import { absolute } from '../transformers/common';
 
 
 function hash(key) {
@@ -18,7 +20,8 @@ export interface FileElement {
   isFolder: boolean;
   name: string;
   slug: string;
-  dir: string
+  dir: string;
+  resourceUrl?: string;
 };
 
 interface IPathInfo {
@@ -30,12 +33,14 @@ interface IPathInfo {
 
 export class FileSystemDataSource extends AbstractDataSource {
   rootDir: string;
+  rootUrl: string;
   private schemaSource: JsonSchema;
 
-  constructor(rootDir?: string) {
+  constructor(rootDir?: string, rootUrl?: string) {
     super();
     //console.log("constructor", rootDir);
     this.rootDir = rootDir || process.cwd();
+    this.rootUrl = rootUrl || '';
     // JSONSCHEMA data relative to package dir
     this.schemaSource = new JsonSchema(filesystemSchema);
   }
@@ -92,7 +97,8 @@ export class FileSystemDataSource extends AbstractDataSource {
           name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
           slug: element.name,
           dir: folder,
-          isFolder: element.isDirectory()
+          isFolder: element.isDirectory(),
+          resourceUrl: !element.isDirectory()? encodeURI(absolute([folder, element.name].join('/'), this.rootUrl)) : undefined
         };
       }), [o => !o.isFolder, 'name']);
     } else {
@@ -100,13 +106,14 @@ export class FileSystemDataSource extends AbstractDataSource {
         name: filename,
         slug: filename,
         dir: folder,
-        isFolder: false
+        isFolder: false,
+        resourceUrl: encodeURI(absolute([folder, filename].join('/'), this.rootUrl))
       }]
     }
   }  
 
   public async getSchema(options?: IDispatchOptions): Promise<IProperty> {
-    const { filename, property } = this.getPathInfo(options);
+    const { folder, filename, property } = this.getPathInfo(options);
 
     //console.log(await this.schemaSource.get({ itemPath: [filename && '#', property].filter(e => !!e).join('/') }));
     return this.schemaSource.get({ itemPath: [filename && '#', property].filter(e => !!e).join('/') });
@@ -125,6 +132,27 @@ export class FileSystemDataSource extends AbstractDataSource {
     }
     return files;
   };
+
+  public async push(options?: IDispatchOptions) {
+    //console.log(`FILESYSTEM push(itemPath: ${options.itemPath}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${options.params})`)
+    const { folder } = this.getPathInfo(options);
+    //console.log(options.files);
+    const files = _.isArray(options.files.file)? options.files.file: [options.files.file];
+    await Promise.all(files.map( f => new Promise((resolve, reject) => {
+        var source = fs.createReadStream(f.path);
+        var dest = fs.createWriteStream(join(folder,f.name));
+      
+        source.pipe(dest);
+        source.on('end', function() { 
+          //console.log(`copied ${f.path} to ${join(folder,f.name)}`); 
+          fs.unlinkSync(f.path);
+          resolve(null);
+        });
+        source.on('error', function(err) { console.log(`error copying ${f.path} to ${join(folder,f.name)}`); reject(err); });      
+      }))
+    );
+    return /* this.get(options) */[];
+  }
 
   public async set(options?: IDispatchOptions) {
     console.log(`FILESYSTEM set(itemPath: ${options.itemPath}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${options.params})`)
@@ -165,7 +193,10 @@ export class FileSystemDataSource extends AbstractDataSource {
   
   public async dispatch(methodName: string, options?: IDispatchOptions): Promise<any> {
     //console.log(`FILESYSTEM dispatch(methodName: ${methodName}, itemPath: ${itemPath}, schema: ${schema}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
+    //console.log({ options })
     options = options || {};
+    //options.itemPath = options?.itemPath ? await this.convertPathToUri(options?.itemPath) : '';
+    //options.schema = options?.schema || await this.getSchema(options);
 
     if (!this[methodName]) {
       throw new Error(`Method ${methodName} not implemented`);
