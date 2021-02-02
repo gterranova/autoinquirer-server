@@ -2,6 +2,7 @@
 
 import { IDispatchOptions } from 'autoinquirer/build/interfaces';
 import * as _ from 'lodash';
+import { decode } from 'html-entities';
 import { getName } from './common';
 
 export async function breadcrumb(_methodName: string, options?: IDispatchOptions): Promise<any> {
@@ -13,7 +14,7 @@ export async function breadcrumb(_methodName: string, options?: IDispatchOptions
         Promise.all( parts.map( async (_p, idx) => {
             const value = parts.slice(0, idx+1).join('/');
             const { entryPointInfo } = await this.getDataSourceInfo({ itemPath: value });
-            return { value, label: (await getName(this, {itemPath: value, parentPath: entryPointInfo?.parentPath })).trim() };
+            return { value, label: decode((await getName(this, {itemPath: value, parentPath: entryPointInfo?.parentPath })).trim()) };
         }))
     ]);
     return { type: 'breadcrumb', pathParts, ...cursor };

@@ -3,9 +3,9 @@
 import { isObject } from 'lodash';
 import { IProperty, IProxyInfo, IDispatchOptions } from 'autoinquirer/build/interfaces';
 import { Dispatcher } from 'autoinquirer';
-import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
-import { AbstractDispatcher, AbstractDataSource } from 'autoinquirer/build/datasource';
+import { decode } from 'html-entities';
+import { AbstractDataSource } from 'autoinquirer/build/datasource';
 
 import { getName, absolute } from './common';
 
@@ -27,6 +27,8 @@ interface ITemplateOptions {
     path?: string,
     options?: any[],
     multiple?: boolean,
+    groupBy?: string,
+    actions?: string[],
 }
 
 export async function formlyze(methodName: string, options?: IDispatchOptions): Promise<any> {
@@ -86,7 +88,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
 
     const single = isSelect(schema);
     const multiple = isCheckBox(schema);
-    const label = await getName(dispatcher, options);
+    const label = decode(await getName(dispatcher, options));
     if ((multiple || single) && !schema.readOnly) {
         const property: IProperty = schema.items || schema;
         const dataPath = property?.$data?.path ? absolute(property.$data.path||'', itemPath) : '';
@@ -100,10 +102,10 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
             const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
             //console.log(enumValues?.entryPointInfo, dataPath, newPath, finalPath);
             return { 
-                label: isObject(value)? await getName((enumValues?.dataSource || dispatcher), { 
+                label: decode(isObject(value)? await getName((enumValues?.dataSource || dispatcher), { 
                     itemPath: newPath, 
                     value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath
-                }): value,
+                }): value),
                 value: finalPath/* newPath */,
                 path: finalPath,
                 resourceUrl: value.resourceUrl,
@@ -120,7 +122,12 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 widget: { formlyConfig: _.merge({ 
                     type: 'select', 
                     wrappers: _.compact([single && !property.enum && 'form-field-link', 'form-field']),
-                    templateOptions: <ITemplateOptions>{ label, multiple, options: enumOptions, groupBy: property?.$data?.groupBy } 
+                    templateOptions: <ITemplateOptions>{ 
+                        label, multiple, 
+                        options: enumOptions, 
+                        groupBy: property?.$data?.groupBy,
+                        actions: property?.$data?.actions,
+                    } 
                 }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
             },
             model: value || (multiple? []: ''),
@@ -258,7 +265,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         widget: { 
             formlyConfig: _.merge({ 
                 templateOptions: <ITemplateOptions>{ 
-                    label: await getName(dispatcher, { itemPath, value, schema, parentPath})
+                    label: decode(await getName(dispatcher, { itemPath, value, schema, parentPath}))
                 } 
             }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {})
         } 
