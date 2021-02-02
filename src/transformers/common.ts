@@ -10,6 +10,7 @@ export const TransformerQuery = {
     BREADCRUMB: 'breadcrumb',
     REDIRECT: 'redirect',
     TEMPLATE: 'template',
+    REPORT: 'report',
 };
 
 export function absolute(testPath: string, absolutePath: string): string {
