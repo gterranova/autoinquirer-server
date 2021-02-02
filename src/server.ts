@@ -1,5 +1,5 @@
 import * as express from 'express';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import * as fs from 'fs';
 
 import * as bodyParser from 'body-parser';
@@ -29,7 +29,8 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   const io = SocketIO(server) // Setup Socket.io's server
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist', 'browser');
-  const STATIC_FOLDER = join(process.cwd(), 'static');
+  process.chdir(dirname(schemaFile));
+  const PUBLIC_FOLDER = join(process.cwd(), 'public');
 
   const renderer = new Dispatcher(schemaFile, dataFile);
   renderer.registerProxies(proxies);
@@ -51,6 +52,7 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   app.use(
     expressJwt({
       secret: 'secret',
+      algorithms: ['HS256'],
       credentialsRequired: false
     }).unless({path: ['/auth/login']}),
     function (err, req, res, next) {
@@ -86,10 +88,10 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   */
   // Server static files from /browser
   app.use(
-    '/static',
+    '/public',
     (req, res) => {
       console.log(decodeURIComponent(req.url))
-      res.sendFile(join(STATIC_FOLDER, decodeURIComponent(req.url)));
+      res.sendFile(join(PUBLIC_FOLDER, decodeURIComponent(req.url)));
     }
   );
 

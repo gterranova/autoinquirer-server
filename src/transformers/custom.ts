@@ -513,11 +513,11 @@ export async function template(methodName: string, options?: IDispatchOptions): 
             reference: referenceFilename,
             toc: template.toc || false,
             output: {
-                path: resolve(process.cwd(), 'static'),
+                path: resolve(process.cwd(), 'public'),
                 filename: `${template.title}_${options.value.name}`, 
                 format: template.format || 'docx'
             }
             });
-        return { type: 'redirect', url: `http://127.0.0.1:4000/static/${generatedFilename}`, target: '_blank' };    
+        return { type: 'redirect', url: `http://127.0.0.1:4000/public/${generatedFilename}`, target: '_blank' };    
     }
 }
