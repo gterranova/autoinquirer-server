@@ -2,7 +2,7 @@ import * as fs from "fs";
 //import * as del from "delete";
 import * as crypto from 'crypto';
 import * as _ from "lodash";
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 import { AbstractDataSource } from 'autoinquirer/build/datasource';
 import { IDispatchOptions, IProperty } from 'autoinquirer/build/interfaces';
@@ -91,23 +91,29 @@ export class FileSystemDataSource extends AbstractDataSource {
 
   private getFiles(pathInfo: IPathInfo) : FileElement[] {
     const { fullPath, folder, filename } = pathInfo;
+    const prefix = this.rootUrl;
     if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
       return _.sortBy(fs.readdirSync(fullPath, { withFileTypes: true }).map((element) => {
+        const resourceUrl = !element.isDirectory()? 
+          encodeURI(absolute([folder, element.name].join('/'), this.rootUrl).replace(RegExp('^'+prefix), '')) : 
+          undefined;
+        
         return {
           name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
           slug: element.name,
           dir: folder,
           isFolder: element.isDirectory(),
-          resourceUrl: !element.isDirectory()? encodeURI(absolute([folder, element.name].join('/'), this.rootUrl)) : undefined
+          resourceUrl
         };
       }), [o => !o.isFolder, 'name']);
     } else {
+      const resourceUrl = encodeURI(absolute([folder, filename].join('/'), this.rootUrl).replace(RegExp('^'+prefix), ''));
       return [{
         name: filename,
         slug: filename,
         dir: folder,
         isFolder: false,
-        resourceUrl: encodeURI(absolute([folder, filename].join('/'), this.rootUrl))
+        resourceUrl
       }]
     }
   }  
