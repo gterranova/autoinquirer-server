@@ -1,10 +1,10 @@
 // tslint:disable:no-console
 
-import { IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { Action, IDispatchOptions } from 'autoinquirer';
 import * as _ from 'lodash';
 import { TransformerQuery } from './common';
 
-export async function layout(methodName: string, options?: IDispatchOptions): Promise<any> {
+export async function layout(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);

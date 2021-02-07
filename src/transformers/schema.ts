@@ -1,5 +1,5 @@
-import { IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { Action, IDispatchOptions } from 'autoinquirer';
 
-export async function schema(_methodName: string, options?: IDispatchOptions): Promise<any> {
+export async function schema(_methodName: Action, options?: IDispatchOptions): Promise<any> {
     return this.getSchema(options);
 }

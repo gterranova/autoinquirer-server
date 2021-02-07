@@ -1,5 +1,5 @@
-import { AbstractDataSource } from 'autoinquirer/build/datasource';
-import { IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { AbstractDataSource } from 'autoinquirer';
+import { Action, IDispatchOptions } from 'autoinquirer';
 import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
 
@@ -36,10 +36,10 @@ export async function getName(dispatcher: AbstractDataSource, options: IDispatch
     options = options || {};
     options.itemPath = options?.itemPath || ''; // await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await dispatcher.getSchema(options);
-    options.value = options?.value || await dispatcher.dispatch('get', options);
+    options.value = options?.value || await dispatcher.dispatch(Action.GET, options);
 
     const {value, schema, parentPath=''} = options;
-    const key = options.itemPath.split('/').pop();
+    const key = (options.itemPath||parentPath).split('/').pop();
     let label = '';
     //if (value && schema?.$data?.path) {
     //    return await getName(dispatcher, {itemPath: `${parentPath}${parentPath?'/':''}${value}`, parentPath});
@@ -47,7 +47,7 @@ export async function getName(dispatcher: AbstractDataSource, options: IDispatch
     if (schema?.$title && value) {
         let parent = {}, parentName = '';
         if (schema?.$title.indexOf('parent') !== -1 || schema?.$title.indexOf('parentName') !== -1) {
-            parent = await dispatcher.dispatch('get', {...options, itemPath: absolute('..', options.itemPath), schema: options.schema.$parent});
+            parent = await dispatcher.dispatch(Action.GET, { itemPath: absolute('..', options.itemPath), schema: options.schema.$parent});
             parentName = await getName(dispatcher, {itemPath: absolute('..', options.itemPath), schema: options.schema.$parent, value: parent, parentPath});
         }
         const template = Handlebars.compile(schema.$title);
@@ -68,7 +68,6 @@ export async function getName(dispatcher: AbstractDataSource, options: IDispatch
         label = (await Promise.all(value.map(async i => await this.getName(i, key, schema.items)))).join(', ');
     }*/
     if (!label) {
-        //console.log("GetName", options, `"${value}"`)
         label = schema?.title || (value && (value.title || value.name)) || key.toString() || `[${schema.type}]`;
     }
     if (label && label.length > 100) {

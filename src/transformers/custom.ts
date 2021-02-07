@@ -6,7 +6,7 @@ import { join, resolve } from 'path';
 import * as Zip from 'adm-zip';
 const { exec } = require('child_process');
 
-import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { Action, IDispatchOptions } from 'autoinquirer';
 
 Handlebars.registerHelper("inc", (value, _) => {
     return parseInt(value) + 1;
@@ -498,7 +498,7 @@ async function generate(data: any, options: any) { // jshint ignore:line
     //}
 }
 
-export async function template(methodName: string, options?: IDispatchOptions): Promise<any> {
+export async function template(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);

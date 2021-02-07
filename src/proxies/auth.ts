@@ -2,8 +2,9 @@ import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
 import * as _ from "lodash";
 
-import { AbstractDataSource } from 'autoinquirer/build/datasource';
-import { IDispatchOptions, IProperty, Action } from 'autoinquirer/build/interfaces';
+import { AbstractDataSource } from 'autoinquirer';
+import { IDispatchOptions, IProperty, Action } from 'autoinquirer';
+import { AutoinquirerGet } from 'autoinquirer';
 import { JsonDataSource, JsonSchema } from 'autoinquirer';
 import * as authSchema from './usersSchema.json';
 
@@ -18,7 +19,7 @@ class AuthError extends Error {
   ajv: boolean;
 }
 
-export class AuthDataSource extends AbstractDataSource {
+export class AuthDataSource extends AbstractDataSource implements AutoinquirerGet {
   private dataSource: AbstractDataSource;
   private schemaSource: JsonSchema;
 
@@ -67,10 +68,10 @@ export class AuthDataSource extends AbstractDataSource {
   }
 
   public async get(options?: IDispatchOptions): Promise<any> {
-    return await this.dataSource.dispatch('get', options);
+    return await this.dataSource.dispatch(Action.GET, options);
   }
   
-  public async dispatch(methodName: string, options?: IDispatchOptions) {
+  public async dispatch(methodName: Action, options?: IDispatchOptions) {
     options = options || {};
 
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options?.itemPath) : '';

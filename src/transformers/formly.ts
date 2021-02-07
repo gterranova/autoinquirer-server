@@ -1,11 +1,11 @@
 // tslint:disable:no-console
 
 import { isObject } from 'lodash';
-import { IProperty, IProxyInfo, IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { IProperty, IProxyInfo, IDispatchOptions, Action } from 'autoinquirer';
 import { Dispatcher } from 'autoinquirer';
 import * as _ from 'lodash';
 import { decode } from 'html-entities';
-import { AbstractDataSource } from 'autoinquirer/build/datasource';
+import { AbstractDataSource } from 'autoinquirer';
 
 import { getName, absolute } from './common';
 
@@ -31,7 +31,7 @@ interface ITemplateOptions {
     actions?: string[],
 }
 
-export async function formlyze(methodName: string, options?: IDispatchOptions): Promise<any> {
+export async function formlyze(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);
@@ -70,7 +70,7 @@ async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
     const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
         await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
         dataPath;
-    let values = (await dataSource.dispatch('get', { itemPath: newPath, params: entryPointInfo?.proxyInfo?.params }) || []);
+    let values = (await dataSource.dispatch(Action.GET, { itemPath: newPath, params: entryPointInfo?.proxyInfo?.params }) || []);
     if (property?.$data?.filterBy) {
         values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
     } 

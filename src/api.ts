@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { Action, IDispatchOptions } from 'autoinquirer';
 import { Dispatcher } from 'autoinquirer';
 import { HttpMethodMap } from './constants';
 import { IncomingForm } from 'formidable';

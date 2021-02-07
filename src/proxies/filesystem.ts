@@ -4,8 +4,10 @@ import * as crypto from 'crypto';
 import * as _ from "lodash";
 import { join, dirname } from 'path';
 
-import { AbstractDataSource } from 'autoinquirer/build/datasource';
-import { IDispatchOptions, IProperty } from 'autoinquirer/build/interfaces';
+import { AbstractDataSource } from 'autoinquirer';
+import { Action, IDispatchOptions, IProperty } from 'autoinquirer';
+import { AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete } from 'autoinquirer';
+
 import { JsonSchema } from 'autoinquirer';
 import * as filesystemSchema from './filesystemSchema.json';
 import { absolute } from '../transformers/common';
@@ -31,7 +33,7 @@ interface IPathInfo {
   property?: string
 }
 
-export class FileSystemDataSource extends AbstractDataSource {
+export class FileSystemDataSource extends AbstractDataSource implements AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete {
   rootDir: string;
   rootUrl: string;
   private schemaSource: JsonSchema;
@@ -185,7 +187,7 @@ export class FileSystemDataSource extends AbstractDataSource {
     */
   }
 
-  public async del(options?: IDispatchOptions) {
+  public async delete(options?: IDispatchOptions) {
     console.log(`FILESYSTEM del(itemPath: ${options?.itemPath}, schema: ${options?.schema}, value: ${options?.value}, parentPath: ${options?.parentPath}, params: ${options?.params})`)
     /*
     if (options?.itemPath) {
@@ -197,7 +199,7 @@ export class FileSystemDataSource extends AbstractDataSource {
     */
   };
   
-  public async dispatch(methodName: string, options?: IDispatchOptions): Promise<any> {
+  public async dispatch(methodName: Action, options?: IDispatchOptions): Promise<any> {
     //console.log(`FILESYSTEM dispatch(methodName: ${methodName}, itemPath: ${itemPath}, schema: ${schema}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
     //console.log({ options })
     options = options || {};

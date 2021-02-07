@@ -9,10 +9,14 @@ import { join, resolve } from 'path';
 import * as Zip from 'adm-zip';
 const { exec } = require('child_process');
 
-import { Action, IDispatchOptions } from 'autoinquirer/build/interfaces';
+import { Action, IDispatchOptions } from 'autoinquirer';
 
 Handlebars.registerHelper("slurp", (value, _) => {
     return (value||'').toString().trim().split(/\n+/).join('\t\t');
+});
+
+Handlebars.registerHelper("qref", (value, _) => {
+    return '{#Q'+(value||'').toString().trim()+'}';
 });
 
 Handlebars.registerHelper("inc", (value, _) => {
@@ -29,8 +33,8 @@ Handlebars.registerHelper("json", (value, _) => {
     return JSON.stringify(value||'').toString();
 });
 
-Handlebars.registerHelper("blob", (value, _) => {
-    return value || "[•]";
+Handlebars.registerHelper("blob", (value, def, _) => {
+    return value || ((typeof def === 'string')? def: "[•]");
 });
 
 Handlebars.registerHelper('ifeq', function(a, b, options) {
@@ -107,11 +111,25 @@ export const lookupValues = (schemaPath: string | string[] = '', obj: any, currP
     return output;    
 }
 
+function resolveComments(obj: any, data: any) {
+    if (!obj) return [];
+    return _.chain(obj).map((comment) => {
+        if (typeof comment == 'string') {
+            return _.values(lookupValues(comment, data))[0];
+        }
+        return comment;
+    }).value();
+}
+
 function resolveContratti(obj: any, data: any) {
     if (!obj) return [];
     return _.chain(obj).map((contratto) => {
         if (typeof contratto == 'string') {
-            return _.values(lookupValues(contratto, data))[0];
+            const datiContratto = _.values(lookupValues(contratto, data))[0];
+            return {
+                ...datiContratto,
+                commenti: resolveComments(datiContratto.commenti, data), 
+            };
         }
         return contratto;
     }).orderBy('data').value();
@@ -123,10 +141,32 @@ function commesse(data: any) {
         .orderBy('data')
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
         .map( (commessa) => {
-            const contratti = resolveContratti(commessa.contratti, data);
+            const contratti_attivi = resolveContratti(commessa.contratti_attivi, data);
+            const contratti_passivi = resolveContratti(commessa.contratti_passivi, data);
             return {
                 ...commessa,
-                contratti, 
+                contratti_attivi, 
+                contratti_passivi,
+            };
+        })
+        .value();
+
+}
+
+function domande(data: any) {
+    return _.chain(lookupValues('qa/0', data))
+        .values()
+        .orderBy('numero')
+        //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
+        .map( (domanda) => {
+            const commessa = _.values(lookupValues(domanda.commessa, data))[0];
+            const contratto_attivo = _.values(lookupValues(domanda.contratto_attivo, data))[0];
+            const contratto_passivo = _.values(lookupValues(domanda.contratto_passivo, data))[0];
+            return {
+                ...domanda,
+                commessa,
+                contratto_attivo, 
+                contratto_passivo,
             };
         })
         .value();
@@ -136,6 +176,7 @@ function commesse(data: any) {
 const ddr = (data: any) => {
     return {
         commesse: commesse(_.cloneDeep(data)),
+        domande: domande(_.cloneDeep(data))
     }
 }
 
@@ -250,7 +291,7 @@ async function generate(data: any, options: any) { // jshint ignore:line
     //}
 }
 
-export async function report(methodName: string, options?: IDispatchOptions): Promise<any> {
+export async function report(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);
