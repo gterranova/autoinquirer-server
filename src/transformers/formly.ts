@@ -5,7 +5,7 @@ import { IProperty, IProxyInfo, IDispatchOptions, Action } from 'autoinquirer';
 import { Dispatcher } from 'autoinquirer';
 import * as _ from 'lodash';
 import { decode } from 'html-entities';
-import { AbstractDataSource } from 'autoinquirer';
+import { AbstractDataSource, IEntryPointInfo } from 'autoinquirer';
 
 import { getName, absolute } from './common';
 
@@ -15,12 +15,6 @@ export interface ISelectOption {
     value: string;
     disabled?: boolean;
 }
-
-interface IEntryPointInfo {
-    proxyInfo: IProxyInfo;
-    parentPath: string;
-    objPath: string;
-};
 
 interface ITemplateOptions {
     label?: string,
@@ -67,10 +61,11 @@ async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
     }
     const dataPath = absolute(property.$data.path, itemPath);
     const { dataSource, entryPointInfo } = await dispatcher.getDataSourceInfo({ itemPath: dataPath });
+    //console.log({ dataSource, entryPointInfo})
     const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
         await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
         dataPath;
-    let values = (await dataSource.dispatch(Action.GET, { itemPath: newPath, params: entryPointInfo?.proxyInfo?.params }) || []);
+    let values = (await dataSource.dispatch(Action.GET, { ...entryPointInfo, itemPath: newPath }) || []);
     if (property?.$data?.filterBy) {
         values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
     } 
@@ -98,7 +93,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy]} } : () => {};
         const enumOptions = !property.enum? await Promise.all(enumValues.values.map(async (value: any) => {
             // this should make it work with filesystem-like refs
-            const newPath = value._fullPath || _.compact([(enumValues?.entryPointInfo?.objPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
+            const newPath = value._fullPath || _.compact([(enumValues?.entryPointInfo?.itemPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
             const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
             //console.log(enumValues?.entryPointInfo, dataPath, newPath, finalPath);
             return { 
