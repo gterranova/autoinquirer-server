@@ -13,7 +13,10 @@ import { getName, absolute } from './common';
 export interface ISelectOption {
     label: string;
     value: string;
+    path?: string;
+    resourceUrl?: string;
     disabled?: boolean;
+    [key: string]: any;
 }
 
 interface ITemplateOptions {
@@ -48,35 +51,6 @@ export async function formlyze(methodName: Action, options?: IDispatchOptions): 
     };
 }
 
-async function getEnumValues(dispatcher: Dispatcher, options: IDispatchOptions)
-    : Promise<{ values: any, dataSource?: AbstractDataSource, entryPointInfo?: IEntryPointInfo}> {
-    
-    const { itemPath, schema } = options;
-    const property: IProperty = schema.items || schema;
-    if (property.enum) {
-        return { values: property.enum};
-    }
-    if (!property?.$data?.path) {
-        return { values: [] };
-    }
-    const dataPath = absolute(property.$data.path, itemPath);
-    const { dataSource, entryPointInfo } = await dispatcher.getDataSourceInfo({ itemPath: dataPath });
-    //console.log({ dataSource, entryPointInfo})
-    const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
-        await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
-        dataPath;
-    let values = (await dataSource.dispatch(Action.GET, { ...entryPointInfo, itemPath: newPath }) || []);
-    if (property?.$data?.filterBy) {
-        values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
-    } 
-    if (property?.$data?.orderBy) {
-        const order = _.zip(...property.$data.orderBy.map( o => /^!/.test(o)? [o.slice(1), 'desc'] : [o, 'asc']));
-        //console.log(order)
-        values = _.orderBy(values, order[0], order[1]);
-    } 
-    return { dataSource, entryPointInfo, values };
-}
-
 async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
     const { itemPath, schema, parentPath } = options;
     let { value } = options;
@@ -86,33 +60,12 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
     const label = decode(await getName(dispatcher, options));
     if ((multiple || single) && !schema.readOnly) {
         const property: IProperty = schema.items || schema;
-        const dataPath = property?.$data?.path ? absolute(property.$data.path||'', itemPath) : '';
-        let $schema = await dispatcher.getSchema({ itemPath: dataPath });
-        $schema = $schema?.items || $schema;
-        const enumValues = await getEnumValues(dispatcher, options);
-        const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy]} } : () => {};
-        const enumOptions = !property.enum? await Promise.all(enumValues.values.map(async (value: any) => {
-            // this should make it work with filesystem-like refs
-            const newPath = value._fullPath || _.compact([(enumValues?.entryPointInfo?.itemPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
-            const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
-            //console.log(enumValues?.entryPointInfo, dataPath, newPath, finalPath);
-            return { 
-                label: decode(isObject(value)? await getName((enumValues?.dataSource || dispatcher), { 
-                    itemPath: newPath, 
-                    value, schema: $schema, parentPath: enumValues?.entryPointInfo?.parentPath
-                }): value),
-                value: finalPath/* newPath */,
-                path: finalPath,
-                resourceUrl: value.resourceUrl,
-                disabled: itemPath.startsWith(finalPath), 
-                ...group(value)
-            };
-        })): undefined;
+        const enumOptions = await getEnumOptions(dispatcher, options);
         const item = {
             schema: {
                 type: multiple ? "array": "string", 
                 title: schema.title,
-                enum: enumOptions?.map( (i: any) => i.value || i) || enumValues.values,
+                enum: enumOptions?.map( (i: any) => i.value || i),
                 description: schema.description, 
                 widget: { formlyConfig: _.merge({ 
                     type: 'select', 
@@ -131,27 +84,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         return item;
 
     } else if (multiple && schema.readOnly) {
-        const property: IProperty = schema.items || schema;
-        const dataPath = property?.$data?.path ? absolute(property.$data.path||'', itemPath) : '';
-        let $schema = await dispatcher.getSchema({ itemPath: dataPath });
-        $schema = $schema?.items || $schema;
-        const enumValues = await getEnumValues(dispatcher, options);
-        const model = (await Promise.all(enumValues.values
-            .filter( (v) => value.indexOf(v._fullPath || _.compact([dataPath, v._id || v]).join('/')) !== -1)
-            .map(async (value: any) => {
-                const newPath = value._fullPath || _.compact([dataPath, value._id || value]).join('/');
-                const finalPath = _.compact([enumValues?.entryPointInfo?.parentPath, newPath]).join('/');
-            return { 
-                name: isObject(value)? await getName(dispatcher, { 
-                    itemPath: newPath, 
-                    value, 
-                    schema: $schema, 
-                    parentPath: enumValues?.entryPointInfo?.parentPath
-                }): value,
-                path: finalPath,
-            };
-        }))) || [];
-
+        const model = await getEnumOptions(dispatcher, options);
         return {
             schema: {
                 type: 'array', 
@@ -160,7 +93,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 readOnly: false,
                 items: {
                     type: 'object',
-                    properties: { name: { type: 'string' }, path: { type: 'string' } }
+                    properties: { label: { type: 'string' }, path: { type: 'string' } }
                 },
                 widget: { formlyConfig: _.merge({ 
                     templateOptions: <ITemplateOptions>{ label, path: itemPath, readonly: true } 
@@ -188,7 +121,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 readOnly: schema.readOnly,
                 items: {
                     type: 'object',
-                    properties: { name: { type: 'string' }, path: { type: 'string' } }
+                    properties: { label: { type: 'string' }, path: { type: 'string' } }
                 },
                 widget: { formlyConfig: _.merge({ 
                     wrappers: schema.$groupBy && ['groups'],
@@ -198,7 +131,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
             model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
                     const newPath = _.compact([itemPath, obj.slug || obj._id || idx]).join('/');
                     return { 
-                        name: await getName(dispatcher, { itemPath: newPath, value: obj, schema: schema.items, parentPath}), 
+                        label: await getName(dispatcher, { itemPath: newPath, value: obj, schema: schema.items, parentPath}), 
                         path: newPath,
                         [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy],
                         resourceUrl: obj.resourceUrl
@@ -239,7 +172,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 isSelect(properties[prop]) || isCheckBox(properties[prop])) {
                 if (properties[prop].$visible === false) continue;
                 const defaultValue = properties[prop].type === 'object'? {} : (isSelect(properties[prop])? '': []);
-                const propKey = properties[prop].type === 'array' && !isCheckBox(properties[prop]) ? `_${prop}` : prop;
+                const propKey = properties[prop].type === 'array' && (properties[prop].readOnly || !isCheckBox(properties[prop])) ? `_${prop}` : prop;
                 const sanitized = await sanitizeJson(dispatcher, { itemPath: _.compact([itemPath, prop]).join('/'), schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
                 safeObj[propKey] = sanitized.model;
                 safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly };
@@ -269,6 +202,52 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
 
     return { schema: schema2, model: value };
 
+}
+
+async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions): Promise<ISelectOption[]> {
+    const property: IProperty = options.schema.items || options.schema;
+    if (property?.enum) {
+        return _.map(property.enum, value => { return { label: value.toString(), value }; });
+    }
+    if (!property?.$data?.path) {
+        return [];
+    }
+    const dataPath = property?.$data?.path ? absolute(property.$data.path||'', options.itemPath) : '';
+    let $schema = await dispatcher.getSchema({ itemPath: dataPath });
+    $schema = $schema?.items || $schema;
+
+    const { dataSource, entryPointInfo } = await dispatcher.getDataSourceInfo({ itemPath: dataPath });
+    //console.log({ dataSource, entryPointInfo})
+    //const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
+    //    await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
+    //    dataPath;
+    let values = (await dataSource.dispatch(Action.GET, entryPointInfo) || []);
+    if (property?.$data?.filterBy) {
+        values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
+    } 
+    if (property?.$data?.orderBy) {
+        const order = _.zip(...property.$data.orderBy.map( o => /^!/.test(o)? [o.slice(1), 'desc'] : [o, 'asc']));
+        //console.log(order)
+        values = _.orderBy(values, order[0], order[1]);
+    } 
+
+    const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy] }; } : () => { };
+    const enumOptions = <ISelectOption[]>await Promise.all(values.map(async (value: any) => {
+        const newPath = value._fullPath || _.compact([(entryPointInfo?.itemPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
+        const finalPath = _.compact([entryPointInfo?.parentPath, newPath]).join('/');
+        return <ISelectOption>{
+            label: decode(isObject(value) ? await getName(dispatcher, {
+                itemPath: finalPath,
+                value, schema: $schema
+            }) : value),
+            value: finalPath,
+            path: finalPath,
+            resourceUrl: value.resourceUrl,
+            disabled: options.itemPath.startsWith(finalPath),
+            ...group(value)
+        };
+    }));
+    return enumOptions;
 }
 
 function isCheckBox(schema: IProperty): boolean {
