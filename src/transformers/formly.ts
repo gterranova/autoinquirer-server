@@ -221,7 +221,10 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     //const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
     //    await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
     //    dataPath;
-    let values = (await dataSource.dispatch(Action.GET, entryPointInfo) || []);
+    let values = (await dataSource.dispatch(Action.GET, entryPointInfo) || []).filter( ref => {
+        //console.log(ref._fullPath, options.value)
+        return !options.schema.readOnly || _.includes(options.value, ref._fullPath)
+    });
     if (property?.$data?.filterBy) {
         values = _.filter(values, Function('value', `return ${property?.$data?.filterBy};`));
     } 
