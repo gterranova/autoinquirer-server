@@ -10,7 +10,7 @@ export async function breadcrumb(_methodName: Action, options?: IDispatchOptions
     //const { dataSource } = <IDataSourceInfo<AbstractDataSource>>await this.getDataSourceInfo({ itemPath: options.itemPath });
     const path = parts[parts.length-1];
     const [cursor, pathParts] = await Promise.all([
-        this.convertObjIDToIndex(path, options.itemPath.slice(0, options.itemPath.length - path.length)),
+        this.convertObjIDToIndex(options),
         Promise.all( parts.map( async (_p, idx) => {
             const value = parts.slice(0, idx+1).join('/');
             //const { entryPointInfo } = await this.getDataSourceInfo({ itemPath: value });

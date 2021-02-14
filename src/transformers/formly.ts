@@ -215,11 +215,16 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     }
     const dataPath = property?.$data?.path ? absolute(property.$data.path||'', options.itemPath) : '';
     let $schema = await dispatcher.getSchema({ itemPath: dataPath });
-    $schema = $schema?.items || $schema;
+    //$schema = $schema?.items || $schema;
     const newOptions = { ...options, itemPath: dataPath, schema: $schema };
     const { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
-    //console.log({entryPointOptions})
-    let values = (await dataSource.dispatch(Action.GET, entryPointOptions) || []).filter( ref => {
+    
+    let values = (await dataSource.dispatch(Action.GET, entryPointOptions) || []);
+    if (!_.isArray(values)) {
+        console.log("EXPECTED ARRAY", {entryPointOptions, values });
+        throw new Error("EXPECTED ARRAY");
+    }
+    values = values.filter( ref => {
         //console.log(ref._fullPath, options.value)
         return !options.schema.readOnly || _.includes(options.value, ref._fullPath)
     });
@@ -239,7 +244,7 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
         return <ISelectOption>{
             label: decode(isObject(value) ? await getName(dispatcher, {
                 itemPath: finalPath,
-                value, schema: $schema
+                value, schema: $schema.items
             }) : value),
             value: finalPath,
             path: finalPath,
