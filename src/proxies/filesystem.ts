@@ -2,9 +2,9 @@ import * as fs from "fs";
 //import * as del from "delete";
 import * as crypto from 'crypto';
 import * as _ from "lodash";
-import { join, dirname } from 'path';
+import { join } from 'path';
 
-import { AbstractDataSource } from 'autoinquirer';
+import { AbstractDispatcher } from 'autoinquirer';
 import { Action, IDispatchOptions, IProperty } from 'autoinquirer';
 import { AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete } from 'autoinquirer';
 
@@ -33,21 +33,22 @@ interface IPathInfo {
   property?: string
 }
 
-export class FileSystemDataSource extends AbstractDataSource implements AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete {
+export class FileSystemDataSource extends AbstractDispatcher implements AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete {
   rootDir: string;
   rootUrl: string;
   private schemaSource: JsonSchema;
 
-  constructor(rootDir?: string, rootUrl?: string) {
+  constructor(rootDir: string, rootUrl: string) {
     super();
-    //console.log("constructor", rootDir);
+    //console.log("constructor", parentDispatcher, rootDir);
     this.rootDir = rootDir || process.cwd();
     this.rootUrl = rootUrl || '';
     // JSONSCHEMA data relative to package dir
     this.schemaSource = new JsonSchema(filesystemSchema);
   }
-  public async connect() {
-    await this.schemaSource.connect();
+  public async connect(parentDispatcher: AbstractDispatcher) {
+    await this.schemaSource.connect(this);
+    this.setParent(parentDispatcher);
    };
   public async close() { };
 
@@ -55,11 +56,11 @@ export class FileSystemDataSource extends AbstractDataSource implements Autoinqu
     return true;
   }
 
-  getDataSource(_parentDataSource?: AbstractDataSource) {
+  getDataSource() {
     return this;
   }
   
-  getSchemaDataSource(_parentDataSource?: AbstractDataSource) {
+  getSchemaDataSource() {
     return { ...this, get: (options) => this.getSchema(options) };
   }
 
@@ -69,7 +70,7 @@ export class FileSystemDataSource extends AbstractDataSource implements Autoinqu
       ...(options?.params?.rootDir || '').split(RegExp('\\|\/')), 
       ...options?.itemPath?.replace(RegExp(`^${options?.parentPath}[\\/|\\\\]?`), '').split(RegExp('\\|\/')) 
     ]).join('/');
-    
+    //console.log( "getPathInfo", { fullPath, resolveTo: resolve(fullPath), options });
     if (!fullPath) return {};
     const pathParts = fullPath.split('/');
     let folder = '.', filename = '', properties = [], idx = 0;
@@ -128,7 +129,7 @@ export class FileSystemDataSource extends AbstractDataSource implements Autoinqu
   }
 
   public async get(options: IDispatchOptions): Promise<FileElement[]|FileElement> {
-    //console.log(`FILESYSTEM get(itemPath: ${itemPath}, schema: ${JSON.stringify(schema)}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
+    //console.log(`FILESYSTEM get(itemPath: ${options.itemPath}, schema: ${JSON.stringify(options.schema)}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${JSON.stringify(options.params)})`)
     const { fullPath, folder, filename, property } = this.getPathInfo(options);
     const files = this.getFiles({ fullPath, folder, filename, property });
     //console.log(`FILES = "${JSON.stringify(files, null, 2)}"`)
@@ -200,8 +201,7 @@ export class FileSystemDataSource extends AbstractDataSource implements Autoinqu
   };
   
   public async dispatch(methodName: Action, options?: IDispatchOptions): Promise<any> {
-    //console.log(`FILESYSTEM dispatch(methodName: ${methodName}, itemPath: ${itemPath}, schema: ${schema}, value: ${value}, parentPath: ${parentPath}, params: ${JSON.stringify(params)})`)
-    //console.log({ options })
+    //console.log(`FILESYSTEM dispatch(methodName: ${methodName},`, { options })
     options = options || {};
     //options.itemPath = options?.itemPath ? await this.convertPathToUri(options?.itemPath) : '';
     //options.schema = options?.schema || await this.getSchema(options);

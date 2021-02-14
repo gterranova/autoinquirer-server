@@ -34,13 +34,14 @@ export async function formlyze(methodName: Action, options?: IDispatchOptions): 
     options.schema = options?.schema || await this.getSchema(options);
     options.value = options?.value || await this.dispatch(methodName, options);
 
-    const { entryPointInfo } = await this.getDataSourceInfo({ itemPath: options.itemPath });        
-    //const itemPath = [dataSource !== this && !itemPath.startsWith(entryPointInfo.parentPath) ? entryPointInfo.parentPath : undefined, itemPath].join('/').replace(/^\//, '');
-
-    const sanitized = await sanitizeJson(this, {
-        ...options,
-        parentPath: entryPointInfo?.parentPath
-    });
+    if (!options.schema) {
+        console.log(options)
+        throw new Error("Schema cannot be null");
+    }
+    const { dataSource, entryPointOptions } = await this.getDataSourceInfo(options);        
+    //const itemPath = [dataSource !== this && !itemPath.startsWith(entryPointOptions.parentPath) ? entryPointOptions.parentPath : undefined, itemPath].join('/').replace(/^\//, '');
+    //console.log({dataSource, options, entryPointOptions})
+    const sanitized = await sanitizeJson(dataSource, {...options, ...entryPointOptions });
     if (sanitized?.schema?.widget?.formlyConfig?.templateOptions) {
         sanitized.schema.widget.formlyConfig.templateOptions.expanded = true;
     }
@@ -129,7 +130,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
             },
             model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
-                    const newPath = _.compact([itemPath, obj.slug || obj._id || idx]).join('/');
+                    const newPath = _.compact([options.parentPath, itemPath, obj.slug || obj._id || idx]).join('/');
                     return { 
                         label: await getName(dispatcher, { itemPath: newPath, value: obj, schema: schema.items, parentPath}), 
                         path: newPath,
@@ -215,13 +216,10 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     const dataPath = property?.$data?.path ? absolute(property.$data.path||'', options.itemPath) : '';
     let $schema = await dispatcher.getSchema({ itemPath: dataPath });
     $schema = $schema?.items || $schema;
-
-    const { dataSource, entryPointInfo } = await dispatcher.getDataSourceInfo({ itemPath: dataPath });
-    //console.log({ dataSource, entryPointInfo})
-    //const newPath = (dataSource instanceof AbstractDataSource && entryPointInfo?.parentPath) ?
-    //    await dataSource.convertPathToUri(dataPath.replace(RegExp(entryPointInfo.parentPath+"[/]?"), '')) :
-    //    dataPath;
-    let values = (await dataSource.dispatch(Action.GET, entryPointInfo) || []).filter( ref => {
+    const newOptions = { ...options, itemPath: dataPath, schema: $schema };
+    const { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
+    //console.log({entryPointOptions})
+    let values = (await dataSource.dispatch(Action.GET, entryPointOptions) || []).filter( ref => {
         //console.log(ref._fullPath, options.value)
         return !options.schema.readOnly || _.includes(options.value, ref._fullPath)
     });
@@ -236,8 +234,8 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
 
     const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy] }; } : () => { };
     const enumOptions = <ISelectOption[]>await Promise.all(values.map(async (value: any) => {
-        const newPath = value._fullPath || _.compact([(entryPointInfo?.itemPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
-        const finalPath = _.compact([entryPointInfo?.parentPath, newPath]).join('/');
+        const newPath = value._fullPath || _.compact([(entryPointOptions?.itemPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
+        const finalPath = _.compact([entryPointOptions?.parentPath, newPath]).join('/');
         return <ISelectOption>{
             label: decode(isObject(value) ? await getName(dispatcher, {
                 itemPath: finalPath,
@@ -250,18 +248,19 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
             ...group(value)
         };
     }));
+    if (!isCheckBox(options.schema) || !enumOptions.length || (options.schema.readOnly && !enumOptions.length) ) { enumOptions.unshift({ label: 'None', value: null }) }
     return enumOptions;
 }
 
 function isCheckBox(schema: IProperty): boolean {
     if (schema === undefined) { return false; };
 
-    return schema.type === 'array' &&
+    return schema?.type === 'array' &&
         isSelect(schema.items||{});
 }
 
 function isSelect(schema: IProperty): boolean {
     if (schema === undefined) { return false; };
 
-    return schema.enum !== undefined || schema?.$data?.path !== undefined;
+    return schema?.enum !== undefined || schema?.$data?.path !== undefined;
 }

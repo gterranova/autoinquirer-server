@@ -37,7 +37,7 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   renderer.registerTransformers(transformers);
   
   //renderer.registerProxy('filesystem', new FileSystemDataSource(DIST_FOLDER));
-  await renderer.connect(); // jshint ignore:line
+  await renderer.connect(null); // jshint ignore:line
 
   //const autoinquirer = new AutoInquirer(config.dispatcher);
 

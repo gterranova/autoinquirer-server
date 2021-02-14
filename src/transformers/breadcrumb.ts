@@ -1,6 +1,6 @@
 // tslint:disable:no-console
 
-import { Action, IDispatchOptions, IDataSourceInfo, AbstractDataSource } from 'autoinquirer';
+import { Action, IDispatchOptions } from 'autoinquirer';
 import * as _ from 'lodash';
 import { decode } from 'html-entities';
 import { getName } from './common';

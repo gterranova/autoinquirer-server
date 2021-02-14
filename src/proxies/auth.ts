@@ -2,7 +2,7 @@ import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
 import * as _ from "lodash";
 
-import { AbstractDataSource } from 'autoinquirer';
+import { AbstractDataSource, AbstractDispatcher } from 'autoinquirer';
 import { IDispatchOptions, IProperty, Action } from 'autoinquirer';
 import { AutoinquirerGet } from 'autoinquirer';
 import { JsonDataSource, JsonSchema } from 'autoinquirer';
@@ -19,7 +19,7 @@ class AuthError extends Error {
   ajv: boolean;
 }
 
-export class AuthDataSource extends AbstractDataSource implements AutoinquirerGet {
+export class AuthDataSource extends AbstractDispatcher implements AutoinquirerGet {
   private dataSource: AbstractDataSource;
   private schemaSource: JsonSchema;
 
@@ -30,9 +30,10 @@ export class AuthDataSource extends AbstractDataSource implements AutoinquirerGe
       this.schemaSource = new JsonSchema(authSchema);
   }
 
-  public async connect(): Promise<void> {
-    await this.dataSource.connect();
-    await this.schemaSource.connect();
+  public async connect(parentDispatcher: AbstractDispatcher): Promise<void> {
+    await this.dataSource.connect(this);
+    await this.schemaSource.connect(this);
+    this.setParent(parentDispatcher);
   }
   public async close(): Promise<void> {
     await this.dataSource.close();
@@ -42,11 +43,11 @@ export class AuthDataSource extends AbstractDataSource implements AutoinquirerGe
     return true;
   }
 
-  public getSchemaDataSource(_parentDataSource?: AbstractDataSource) {
+  public getSchemaDataSource() {
     return this.schemaSource;
   }
 
-  public getDataSource(_parentDispatcher?: AbstractDataSource): AbstractDataSource {
+  public getDataSource(): AbstractDataSource {
     return this;
   }
 

@@ -9,10 +9,27 @@ import { join, resolve } from 'path';
 import * as Zip from 'adm-zip';
 const { exec } = require('child_process');
 
+import * as crypto from 'crypto';
+function hash(key) {
+    return crypto.pbkdf2Sync('secret', JSON.stringify(key), 100, 12, 'sha1').toString('hex');  // '3745e48...08d59ae'
+  }
+  
 import { Action, IDispatchOptions } from 'autoinquirer';
 
 Handlebars.registerHelper("slurp", (value, _) => {
     return (value||'').toString().trim().split(/\n+/).join('\t\t');
+});
+
+Handlebars.registerHelper("link", (...args) => {
+    args.pop()
+    const ref = _.chain(args).compact().map( x => x.toString().trim()).join(' ').kebabCase().value();
+    return `(#${ref})`;
+});
+
+Handlebars.registerHelper("ref", (...args) => {
+    args.pop()
+    const ref = _.chain(args).compact().map( x => x.toString().trim()).join(' ').kebabCase().value();
+    return `{#${ref}}`;
 });
 
 Handlebars.registerHelper("qref", (value, _) => {
@@ -143,10 +160,28 @@ function commesse(data: any) {
         .map( (commessa) => {
             const contratti_attivi = resolveContratti(commessa.contratti_attivi, data);
             const contratti_passivi = resolveContratti(commessa.contratti_passivi, data);
+            const fideiussioni = resolveContratti(commessa.fideiussioni, data);
             return {
                 ...commessa,
                 contratti_attivi, 
                 contratti_passivi,
+                fideiussioni,
+            };
+        })
+        .value();
+
+}
+
+function fideiussioni(data: any) {
+    return _.chain(lookupValues('fideiussioni/0', data))
+        .values()
+        .orderBy('scadenza')
+        //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
+        .map( (fideiussione) => {
+            const commessa = _.values(lookupValues(fideiussione.commessa, data))[0];
+            return {
+                ...fideiussione,
+                commessa
             };
         })
         .value();
@@ -176,7 +211,8 @@ function domande(data: any) {
 const ddr = (data: any) => {
     return {
         commesse: commesse(_.cloneDeep(data)),
-        domande: domande(_.cloneDeep(data))
+        domande: domande(_.cloneDeep(data)),
+        fideiussioni: fideiussioni(_.cloneDeep(data)),
     }
 }
 
