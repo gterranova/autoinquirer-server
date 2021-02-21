@@ -6,6 +6,13 @@ import { TransformerQuery } from './common';
 
 export async function layout(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
+    if (/^archived\/?/.test(options.itemPath)) {
+        options.itemPath = options.itemPath.replace(/^archived\/?/, '');
+        options.params = {...options.params, archived: true };
+    }
+    if (options.params?.archived && methodName !== Action.GET) 
+        throw new Error(`Method ${methodName} not implemented for archived items`);
+
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);
     options.value = options?.value || await this.dispatch(methodName, options);

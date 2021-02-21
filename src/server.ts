@@ -90,7 +90,7 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   app.use(
     '/public',
     (req, res) => {
-      console.log(decodeURIComponent(req.url))
+      //console.log(decodeURIComponent(req.url))
       res.sendFile(join(PUBLIC_FOLDER, decodeURIComponent(req.url)));
     }
   );

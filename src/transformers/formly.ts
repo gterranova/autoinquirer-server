@@ -1,13 +1,12 @@
 // tslint:disable:no-console
 
 import { isObject } from 'lodash';
-import { IProperty, IProxyInfo, IDispatchOptions, Action } from 'autoinquirer';
+import { IProperty, IDispatchOptions, Action } from 'autoinquirer';
 import { Dispatcher } from 'autoinquirer';
 import * as _ from 'lodash';
 import { decode } from 'html-entities';
-import { AbstractDataSource, IEntryPointInfo } from 'autoinquirer';
 
-import { getName, absolute } from './common';
+import { getName, absolute, fullPath } from './common';
 
 // tslint:disable-next-line:no-any
 export interface ISelectOption {
@@ -30,12 +29,19 @@ interface ITemplateOptions {
 
 export async function formlyze(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
+    if (/^archived\/?/.test(options.itemPath)) {
+        options.itemPath = options.itemPath.replace(/^archived\/?/, '');
+        options.params = {...options.params, archived: true };
+    }
+    if (options.params?.archived && methodName !== Action.GET) 
+        throw new Error(`Method ${methodName} not implemented for archived items`);
+    const { archived } = (options.params || {});
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);
     options.value = options?.value || await this.dispatch(methodName, options);
 
     if (!options.schema) {
-        console.log(options)
+        //console.log(options)
         throw new Error("Schema cannot be null");
     }
     const { dataSource, entryPointOptions } = await this.getDataSourceInfo(options);        
@@ -47,21 +53,24 @@ export async function formlyze(methodName: Action, options?: IDispatchOptions): 
     }
     return {
         type: sanitized?.schema?.widget?.formlyConfig?.componentType || 'form',
-        path: options.itemPath,
+        path: fullPath(entryPointOptions?.parentPath, options.itemPath, options.params?.archived),
         ...sanitized
     };
 }
 
 async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
     const { itemPath, schema, parentPath } = options;
+    const { archived } = (options.params || {});
+    //schema.readOnly = schema.readOnly && !archived;
     let { value } = options;
 
     const single = isSelect(schema);
     const multiple = isCheckBox(schema);
     const label = decode(await getName(dispatcher, options));
-    if ((multiple || single) && !schema.readOnly) {
+    if ((multiple || single) && !schema.readOnly && !archived) {
         const property: IProperty = schema.items || schema;
         const enumOptions = await getEnumOptions(dispatcher, options);
+        value = multiple? value.map( v => fullPath(parentPath, v, archived)): value;
         const item = {
             schema: {
                 type: multiple ? "array": "string", 
@@ -84,23 +93,35 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         //console.log(multiple?"checkbox": "select", itemPath, JSON.stringify(item, null, 2))
         return item;
 
-    } else if (multiple && schema.readOnly) {
-        const model = await getEnumOptions(dispatcher, options);
+    } else if ((multiple || single) && (schema.readOnly || archived)) {
         return {
             schema: {
-                type: 'array', 
+                type: multiple ? "array": "string", 
                 title: label, 
                 description: schema.description, 
-                readOnly: false,
-                items: {
+                readOnly: true,
+                items: multiple ?{
                     type: 'object',
                     properties: { label: { type: 'string' }, path: { type: 'string' } }
-                },
+                }: undefined,
                 widget: { formlyConfig: _.merge({ 
-                    templateOptions: <ITemplateOptions>{ label, path: itemPath, readonly: true } 
-                }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
+                    templateOptions: <ITemplateOptions>{ 
+                        label, 
+                        path: fullPath(parentPath, itemPath, archived), 
+                        disabled: true,
+                        expanded: true
+                    } 
+                }, !archived?{ expressionProperties: schema.$expressionProperties }: {}, schema.$widget || {}) }
             },
-            model
+            model: single? 
+                (value? await getName(dispatcher, { itemPath: fullPath(parentPath, value, archived) }): ''): 
+                (value.length? await Promise.all(value.map(async i => {
+                    const itemPath = fullPath(parentPath, i, archived);
+                    return { 
+                        label: await getName(dispatcher, { itemPath }),
+                        path: itemPath
+                    }
+                })): [ { label: 'None' }])
         }
     } else if (schema.type === 'array') {
         const $order = schema.$orderBy || [];
@@ -119,20 +140,31 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 type: 'array', 
                 title: label, 
                 description: schema.description, 
-                readOnly: schema.readOnly,
+                readOnly: schema.readOnly || archived,
                 items: {
                     type: 'object',
                     properties: { label: { type: 'string' }, path: { type: 'string' } }
                 },
                 widget: { formlyConfig: _.merge({ 
                     wrappers: schema.$groupBy && ['groups'],
-                    templateOptions: <ITemplateOptions>{ label, path: itemPath, groupBy: schema.$groupBy } 
-                }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
+                    templateOptions: <ITemplateOptions>{ 
+                        label, 
+                        path: fullPath(parentPath, itemPath, archived), 
+                        groupBy: schema.$groupBy,
+                        expanded: archived 
+                    } 
+                }, !archived?{ expressionProperties: schema.$expressionProperties }:{}, schema.$widget || {}) }
             },
             model: Array.isArray(value) ? await Promise.all(value.map(async (obj, idx) => {
-                    const newPath = _.compact([options.parentPath, itemPath, obj.slug || obj._id || idx]).join('/');
+                    const newPath = fullPath(parentPath, itemPath, archived, obj.slug || obj._id || idx);
                     return { 
-                        label: await getName(dispatcher, { itemPath: newPath, value: obj, schema: schema.items, parentPath}), 
+                        label: await getName(dispatcher, { 
+                            itemPath: newPath, 
+                            value: obj, 
+                            schema: schema.items, 
+                            parentPath,
+                            params: options.params
+                        }), 
                         path: newPath,
                         [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy],
                         resourceUrl: obj.resourceUrl
@@ -146,14 +178,16 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
             title: label, 
             description: schema.description, 
             required: schema.required,
-            readOnly: schema.readOnly, 
+            readOnly: schema.readOnly || archived, 
             properties: {},
             widget: { formlyConfig: _.merge({ 
                 templateOptions: <ITemplateOptions>{ 
                     label, 
-                    path: itemPath,
+                    path: fullPath(parentPath, itemPath, archived), 
+                    expanded: archived,
+                    disabled: archived,
                 } 
-            }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {}) }
+            }, !archived?{ expressionProperties: schema.$expressionProperties }:{}, schema.$widget || {}) }
         };
         const properties = schema.properties ? { ...schema.properties } : {};
         if (schema.patternProperties && isObject(value)) {
@@ -174,14 +208,26 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 if (properties[prop].$visible === false) continue;
                 const defaultValue = properties[prop].type === 'object'? {} : (isSelect(properties[prop])? '': []);
                 const propKey = properties[prop].type === 'array' && (properties[prop].readOnly || !isCheckBox(properties[prop])) ? `_${prop}` : prop;
-                const sanitized = await sanitizeJson(dispatcher, { itemPath: _.compact([itemPath, prop]).join('/'), schema: properties[prop], value: (value && value[prop]) || defaultValue, parentPath });
+                const sanitized = await sanitizeJson(dispatcher, { 
+                    itemPath: fullPath(parentPath, itemPath, archived, prop), 
+                    schema: properties[prop], 
+                    value: (value && value[prop]) || defaultValue, 
+                    parentPath,
+                    params: options.params
+                 });
                 safeObj[propKey] = sanitized.model;
-                safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly };
+                safeSchema.properties[propKey] = {...sanitized.schema, readOnly: schema.readOnly || archived };
             } else {
-                const sanitized = await sanitizeJson(dispatcher, { itemPath: _.compact([itemPath, prop]).join('/'), schema: properties[prop], value: value && value[prop], parentPath });
+                const sanitized = await sanitizeJson(dispatcher, { 
+                    itemPath: fullPath(parentPath, itemPath, archived, prop), 
+                    schema: properties[prop], 
+                    value: value && value[prop], 
+                    parentPath,
+                    params: options.params
+                 });
                 safeObj[prop] = sanitized.model;
                 if (properties[prop].$visible === false) continue;
-                safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly || properties[prop].readOnly };
+                safeSchema.properties[prop] = {...sanitized.schema, readOnly: schema.readOnly || properties[prop].readOnly || archived };
             }
         }
         return { schema: safeSchema, model: safeObj || {} };
@@ -194,9 +240,16 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         widget: { 
             formlyConfig: _.merge({ 
                 templateOptions: <ITemplateOptions>{ 
-                    label: decode(await getName(dispatcher, { itemPath, value, schema, parentPath}))
+                    label: decode(await getName(dispatcher, { 
+                        itemPath, 
+                        value, 
+                        schema, 
+                        parentPath, 
+                        params: options.params
+                    })),
+                    disabled: archived
                 } 
-            }, { expressionProperties: schema.$expressionProperties }, schema.$widget || {})
+            }, !archived?{ expressionProperties: schema.$expressionProperties }:{}, schema.$widget || {})
         } 
     };
 
@@ -206,6 +259,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
 }
 
 async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions): Promise<ISelectOption[]> {
+    const { archived } = options.params || {};
     const property: IProperty = options.schema.items || options.schema;
     if (property?.enum) {
         return _.map(property.enum, value => { return { label: value.toString(), value }; });
@@ -214,7 +268,7 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
         return [];
     }
     const dataPath = property?.$data?.path ? absolute(property.$data.path||'', options.itemPath) : '';
-    let $schema = await dispatcher.getSchema({ itemPath: dataPath });
+    let $schema = await dispatcher.getSchema({ itemPath: dataPath, params: options.params });
     //$schema = $schema?.items || $schema;
     const newOptions = { ...options, itemPath: dataPath, schema: $schema };
     const { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
@@ -239,12 +293,14 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
 
     const group = property?.$data?.groupBy ? (v) => { return { [`${property.$data.groupBy}Id`]: v[property.$data.groupBy] }; } : () => { };
     const enumOptions = <ISelectOption[]>await Promise.all(values.map(async (value: any) => {
-        const newPath = value._fullPath || _.compact([(entryPointOptions?.itemPath || dataPath).replace(/\/?#$/g, ''), value._id || value.slug ||value]).join('/');
-        const finalPath = _.compact([entryPointOptions?.parentPath, newPath]).join('/');
+        const newPath = value._fullPath || fullPath(null, (entryPointOptions?.itemPath || dataPath).replace(/\/?#$/g, ''), null, value._id || value.slug ||value);
+        const finalPath = fullPath(entryPointOptions?.parentPath, newPath, archived);
         return <ISelectOption>{
             label: decode(isObject(value) ? await getName(dispatcher, {
                 itemPath: finalPath,
-                value, schema: $schema.items
+                value, 
+                schema: $schema.items,
+                params: options.params
             }) : value),
             value: finalPath,
             path: finalPath,
@@ -253,7 +309,9 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
             ...group(value)
         };
     }));
-    if (!isCheckBox(options.schema) || !enumOptions.length || (options.schema.readOnly && !enumOptions.length) ) { enumOptions.unshift({ label: 'None', value: null }) }
+    if (!isCheckBox(options.schema) || !enumOptions.length || 
+        (options.schema.readOnly && !enumOptions.length) ) 
+            { enumOptions.unshift({ label: 'None', value: null }) }
     return enumOptions;
 }
 

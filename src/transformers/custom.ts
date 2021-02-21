@@ -8,6 +8,10 @@ const { exec } = require('child_process');
 
 import { Action, IDispatchOptions } from 'autoinquirer';
 
+Handlebars.registerHelper("setVar", function(varName, varValue, options) {
+    options.data.root[varName] = varValue;
+});
+
 Handlebars.registerHelper("inc", (value, _) => {
     return parseInt(value) + 1;
 });
@@ -445,7 +449,7 @@ async function generate(data: any, options: any) { // jshint ignore:line
         blocks.map( async (blockContent, idx) => {
         let filenameFinal = outputFilename;
         if (blocks.length>1) {
-            const suffix = blocksNames[idx] || ''+idx;
+            const suffix = (blocksNames[idx] || ''+idx).slice(0, 50);
             filenameFinal = `${options.output.path}/${options.output.filename}${blocks.length>2?' '+suffix:''} (${idx++}).${options.output.format}`
         } 
         const toc = options.toc?'--toc':'';

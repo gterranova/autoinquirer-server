@@ -32,6 +32,10 @@ export function absolute(testPath: string, absolutePath: string): string {
     return p0.join('/');
 }
 
+export function fullPath(parentPath: string, itemPath: string, archived: boolean, propName?: string) {
+    return _.compact([parentPath, archived && 'archived', itemPath, propName]).join('/')
+}
+
 export async function getName(dispatcher: AbstractDataSource, options: IDispatchOptions): Promise<string> {
     options = options || {};
     options.itemPath = options?.itemPath || ''; // await this.convertPathToUri(options.itemPath) : '';
@@ -48,7 +52,13 @@ export async function getName(dispatcher: AbstractDataSource, options: IDispatch
         let parent = {}, parentName = '';
         if (schema?.$title.indexOf('parent') !== -1 || schema?.$title.indexOf('parentName') !== -1) {
             parent = await dispatcher.dispatch(Action.GET, { itemPath: absolute('..', options.itemPath), schema: options.schema.$parent});
-            parentName = await getName(dispatcher, {itemPath: absolute('..', options.itemPath), schema: options.schema.$parent, value: parent, parentPath});
+            parentName = await getName(dispatcher, {
+                itemPath: absolute('..', options.itemPath), 
+                schema: options.schema.$parent, 
+                value: parent, 
+                parentPath,
+                params: options.params
+            });
         }
         const template = Handlebars.compile(schema.$title);
         label = template({parent, parentName, options, key, ...value }).trim();
@@ -56,9 +66,17 @@ export async function getName(dispatcher: AbstractDataSource, options: IDispatch
             label = (await Promise.all(label.split(' ').map(async labelPart => {
                 if (labelPart && labelPart.indexOf('/') > 3) {
                     //console.log(labelPart)
-                    const subRefSchema = await dispatcher.getSchema({ itemPath: `${parentPath}${parentPath?'/':''}${labelPart}` });
+                    const subRefSchema = await dispatcher.getSchema({ 
+                        itemPath: `${parentPath}${parentPath?'/':''}${labelPart}`,
+                        params: options.params 
+                    });
                     if (subRefSchema && !subRefSchema.$data) {
-                        return await getName(dispatcher, {itemPath: `${parentPath}${parentPath?'/':''}${labelPart}`, schema: subRefSchema, parentPath});
+                        return await getName(dispatcher, {
+                            itemPath: `${parentPath}${parentPath?'/':''}${labelPart}`, 
+                            schema: subRefSchema, 
+                            parentPath,
+                            params: options.params
+                        });
                     }    
                 }
                 return labelPart;

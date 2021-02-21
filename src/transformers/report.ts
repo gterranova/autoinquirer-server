@@ -17,7 +17,16 @@ function hash(key) {
 import { Action, IDispatchOptions } from 'autoinquirer';
 
 Handlebars.registerHelper("slurp", (value, _) => {
-    return (value||'').toString().trim().split(/\n+/).join('\t\t');
+    return (value.fn?.(this)||value||'').toString().trim().split(/\n+/).join('\t\t');
+});
+
+Handlebars.registerHelper('eachProperty', function(context, options) {
+    var ret = "";
+    for(var prop in context)
+    {
+        ret = ret + options.fn({property:prop,value:context[prop]});
+    }
+    return ret;
 });
 
 Handlebars.registerHelper("link", (...args) => {
@@ -175,7 +184,7 @@ function commesse(data: any) {
 function fideiussioni(data: any) {
     return _.chain(lookupValues('fideiussioni/0', data))
         .values()
-        .orderBy('scadenza')
+        .orderBy(['banca', 'scadenza'])
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
         .map( (fideiussione) => {
             const commessa = _.values(lookupValues(fideiussione.commessa, data))[0];
@@ -184,6 +193,7 @@ function fideiussioni(data: any) {
                 commessa
             };
         })
+        .groupBy('banca')
         .value();
 
 }
@@ -192,7 +202,6 @@ function domande(data: any) {
     return _.chain(lookupValues('qa/0', data))
         .values()
         .orderBy('numero')
-        //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
         .map( (domanda) => {
             const commessa = _.values(lookupValues(domanda.commessa, data))[0];
             const contratto_attivo = _.values(lookupValues(domanda.contratto_attivo, data))[0];
@@ -204,6 +213,7 @@ function domande(data: any) {
                 contratto_passivo,
             };
         })
+        .groupBy(o => `${o.commessa.commessa} - ${o.commessa.riferimento}`)
         .value();
 
 }
@@ -214,6 +224,16 @@ const ddr = (data: any) => {
         domande: domande(_.cloneDeep(data)),
         fideiussioni: fideiussioni(_.cloneDeep(data)),
     }
+}
+
+const partNumbering = (content: string, level = 0, prefix = '') => {
+    if (level > 3) return content;
+    let skips = 0;
+    return content.split(RegExp(`\n[#]{${level+1}}[ ]+`, 'gm')).map((p, idx) => {
+        if (p[0] == '*') { skips +=1; return p.slice(1)};
+        const par = (idx-skips)>0? `${prefix}${(idx-skips).toString()}.`: '';
+        return `${par} `+ partNumbering(p, level+1, par);
+    }).join(_.padEnd('\n', level+2, '#')+' ').trimLeft();
 }
 
 async function generate(data: any, options: any) { // jshint ignore:line
@@ -271,7 +291,8 @@ async function generate(data: any, options: any) { // jshint ignore:line
 
     var zip = new Zip();
     await Promise.all(
-        blocks.map( async (blockContent, idx) => {
+        blocks.map( async (block, idx) => {
+        const blockContent = partNumbering(block);
         let filenameFinal = outputFilename;
         if (blocks.length>1) {
             const suffix = blocksNames[idx] || ''+idx;
@@ -293,10 +314,12 @@ async function generate(data: any, options: any) { // jshint ignore:line
             let cmd = `pandoc "${mdFile}" -f markdown+pipe_tables --columns=43 ${toc} --wrap=preserve -t ${options.output.format} -o "${filenameFinal}"`;
             if (options.output.format==='docx') {
                 cmd += ` --reference-doc=${options.reference} -A ${options.reference}`;
+            } else if (options.output.format==='html') {
+                cmd += ` -s --css "./pandoc.css"`;
             } else {
                 cmd += ' -s';
             }
-            //console.log(cmd)
+            console.log(cmd)
             const result = await new Promise(function(resolve, reject) {
                 exec(cmd, (error, stdout) => {
                     if (error) {
