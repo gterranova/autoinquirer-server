@@ -114,12 +114,12 @@ export const municipalities = (data: any) => {
 
 function holdersKey(o: any) {
     return o.holders && o.holders.length && 
-        _.sortBy(o.holders, 'name').map( h => [h.name, h.quota, h.ownershipType]).join(' ')
+        _.sortBy(o.holders, 'name').map( h => [h.name, h.quota, h.ownershipType, h.titleChallengeableWithin]).join(' ')
 }
 
 function holdersKeyOwnership(o: any) {
     return o.holders && o.holders.length && 
-        _.sortBy(o.holders, 'name').filter(h => ['property', 'bare ownership'].indexOf(h.ownershipType) !== -1)
+        _.sortBy(o.holders, 'name') //.filter(h => ['property', 'bare ownership'].indexOf(h.ownershipType) !== -1)
             .map( h => [h.name, h.quota]).join(' ');
 }
 
@@ -148,13 +148,15 @@ function resolveHolders(obj: any, data: any) {
 
 function resolveLands(obj: any, data: any) {
     if (!obj) return [];
-    return obj.map((land) => {
+    return _.chain(obj).map((land) => {
         if (typeof land == 'string') {
             const projectPath = land.split('/').slice(2)
             return _.values(lookupValues(projectPath, data))[0];
         }
         return land;
-    });
+    })
+    .orderBy(['sheet', 'parcel'])
+    .value();
 }
 
 function resolveRegistrations(obj: any, data: any) {
@@ -210,6 +212,7 @@ function sumLandsPrices(lands: any[], key: string = 'area', kind: string = 'pric
 
 function groupLandsBySheet(landsGroup: any[], data: any) {
     return _.chain(landsGroup)
+        .orderBy(['sheet', 'parcel'])
         .groupBy('sheet')
         .values()
         .filter( o => o !== undefined && o.length && o[0] !== undefined)
@@ -257,6 +260,7 @@ function groupByOwnersAndSheet(data: any) {
     return _.chain(lookupValues('lands/0', data))
         .values()
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
+        .orderBy(['sheet', 'parcel'])
         .groupBy(holdersKeyOwnership)
         .values()
         .map( (landsGroup) => {
@@ -325,8 +329,9 @@ function groupByOwnersAndSheet(data: any) {
 function groupByChallengeableOwnersAndSheet(data: any) {
     return _.chain(lookupValues('lands/0', data))
         .values()
+        .orderBy(['sheet', 'parcel'])
         .map( (o) => {
-            return {...o, holders: _.filter(o.holders, (h) => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2020)};
+            return {...o, holders: _.filter(o.holders, (h) => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021)};
          })
         .groupBy(holdersKey)
         .values()

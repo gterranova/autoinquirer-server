@@ -17,7 +17,19 @@ function hash(key) {
 import { Action, IDispatchOptions } from 'autoinquirer';
 
 Handlebars.registerHelper("slurp", (value, _) => {
-    return (value.fn?.(this)||value||'').toString().trim().split(/\n+/).join('\t\t');
+    return (value?.fn?.(this)||value||'').toString().trim().split(/\n+/).join('\t\t');
+});
+
+Handlebars.registerHelper('currency', function(amount, options) {
+    var num = new Number(amount);
+    if (_.isNaN(num)) return '-';
+
+    const currencyOptions = new Intl.NumberFormat('it-IT', {
+        style: 'currency',
+        currency: 'EUR',
+    }).resolvedOptions();
+    
+    return num.toLocaleString('it-IT', { ...currencyOptions, style: 'decimal' });
 });
 
 Handlebars.registerHelper('eachProperty', function(context, options) {
@@ -154,11 +166,20 @@ function resolveContratti(obj: any, data: any) {
             const datiContratto = _.values(lookupValues(contratto, data))[0];
             return {
                 ...datiContratto,
-                commenti: resolveComments(datiContratto.commenti, data), 
+                commenti: datiContratto?.commenti && resolveComments(datiContratto.commenti, data), 
             };
         }
         return contratto;
     }).orderBy('data').value();
+}
+
+function resolveATI(obj: any, data: any) {
+    if (!obj) return;
+    const item = _.values(lookupValues(obj, data))[0];
+    return {
+        ...item,
+        commenti: item?.commenti && resolveComments(item.commenti, data), 
+    };
 }
 
 function commesse(data: any) {
@@ -170,11 +191,13 @@ function commesse(data: any) {
             const contratti_attivi = resolveContratti(commessa.contratti_attivi, data);
             const contratti_passivi = resolveContratti(commessa.contratti_passivi, data);
             const fideiussioni = resolveContratti(commessa.fideiussioni, data);
+            const ati = resolveATI(commessa.ati, data);
             return {
                 ...commessa,
                 contratti_attivi, 
                 contratti_passivi,
                 fideiussioni,
+                ati,
             };
         })
         .value();
@@ -184,7 +207,7 @@ function commesse(data: any) {
 function fideiussioni(data: any) {
     return _.chain(lookupValues('fideiussioni/0', data))
         .values()
-        .orderBy(['banca', 'scadenza'])
+        .orderBy(['scadenza'])
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
         .map( (fideiussione) => {
             const commessa = _.values(lookupValues(fideiussione.commessa, data))[0];
@@ -193,7 +216,23 @@ function fideiussioni(data: any) {
                 commessa
             };
         })
-        .groupBy('banca')
+        .groupBy(o => moment(o.scadenza).format('YYYY') )
+        .value();
+
+}
+
+function ati(data: any) {
+    return _.chain(lookupValues('ati/0', data))
+        .values()
+        .orderBy(['data'])
+        //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
+        .map( (ati) => {
+            const commessa = _.values(lookupValues(ati.commessa, data))[0];
+            return {
+                ...ati,
+                commessa
+            };
+        })
         .value();
 
 }
@@ -213,7 +252,7 @@ function domande(data: any) {
                 contratto_passivo,
             };
         })
-        .groupBy(o => `${o.commessa.commessa} - ${o.commessa.riferimento}`)
+        .groupBy(o => o.commessa? `${o.commessa.commessa} - ${o.commessa.riferimento}`: "ALTRE COMMESSE")
         .value();
 
 }
@@ -223,6 +262,7 @@ const ddr = (data: any) => {
         commesse: commesse(_.cloneDeep(data)),
         domande: domande(_.cloneDeep(data)),
         fideiussioni: fideiussioni(_.cloneDeep(data)),
+        ati: ati(_.cloneDeep(data)),
     }
 }
 
