@@ -92,23 +92,30 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     return { fullPath: fullPath.replace(RegExp(`\/?${property}$`), ''), folder, filename, property};  
   };
 
-  private getFiles(pathInfo: IPathInfo) : FileElement[] {
+  private getFiles(pathInfo: IPathInfo, depth = 1) : FileElement[] {
     const { fullPath, folder, filename } = pathInfo;
     const prefix = this.rootUrl;
     if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
-      return _.sortBy(fs.readdirSync(fullPath, { withFileTypes: true }).map((element) => {
-        const resourceUrl = !element.isDirectory()? 
-          encodeURI(absolute([folder, element.name].join('/'), this.rootUrl).replace(RegExp('^'+prefix), '')) : 
-          undefined;
-        
-        return {
-          name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
-          slug: element.name,
-          dir: folder,
-          isFolder: element.isDirectory(),
-          resourceUrl
-        };
-      }), [o => !o.isFolder, 'name']);
+      return _.chain(fs.readdirSync(fullPath, { withFileTypes: true }))
+        .map((element) => {
+          const resourceUrl = !element.isDirectory()? 
+            encodeURI(absolute([folder, element.name].join('/'), this.rootUrl).replace(RegExp('^'+prefix), '')) : 
+            undefined;
+          const item = {
+            name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
+            slug: element.name,
+            dir: folder,
+            isFolder: element.isDirectory(),
+            resourceUrl
+          };
+          if (depth > 1 && element.isDirectory()) {
+            return [item, ...this.getFiles({ fullPath: join(fullPath, element.name), folder: join(folder, element.name)}, depth-1)]
+          }
+          return [item];
+      })
+      .flattenDeep()
+      .sortBy([o => !o.isFolder, 'name'])
+      .value();
     } else {
       const resourceUrl = encodeURI(absolute([folder, filename].join('/'), this.rootUrl).replace(RegExp('^'+prefix), ''));
       return [{
@@ -131,7 +138,7 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
   public async get(options: IDispatchOptions): Promise<FileElement[]|FileElement> {
     //console.log(`FILESYSTEM get(itemPath: ${options.itemPath}, schema: ${JSON.stringify(options.schema)}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${JSON.stringify(options.params)})`)
     const { fullPath, folder, filename, property } = this.getPathInfo(options);
-    const files = this.getFiles({ fullPath, folder, filename, property });
+    const files = this.getFiles({ fullPath, folder, filename, property }, options.params?.depth);
     //console.log(`FILES = "${JSON.stringify(files, null, 2)}"`)
     if (filename) {
         if (property) {

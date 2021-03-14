@@ -44,16 +44,16 @@ export async function formlyze(methodName: Action, options?: IDispatchOptions): 
         //console.log(options)
         throw new Error("Schema cannot be null");
     }
-    const { dataSource, entryPointOptions } = await this.getDataSourceInfo(options);        
+    //const { dataSource, entryPointOptions } = await this.getDataSourceInfo(options);        
     //const itemPath = [dataSource !== this && !itemPath.startsWith(entryPointOptions.parentPath) ? entryPointOptions.parentPath : undefined, itemPath].join('/').replace(/^\//, '');
     //console.log({dataSource, options, entryPointOptions})
-    const sanitized = await sanitizeJson(dataSource, {...options, ...entryPointOptions });
+    const sanitized = await sanitizeJson(this, options);
     if (sanitized?.schema?.widget?.formlyConfig?.templateOptions) {
         sanitized.schema.widget.formlyConfig.templateOptions.expanded = true;
     }
     return {
         type: sanitized?.schema?.widget?.formlyConfig?.componentType || 'form',
-        path: fullPath(entryPointOptions?.parentPath, options.itemPath, options.params?.archived),
+        path: fullPath(/*entryPointOptions?.parentPath*/null, options.itemPath, options.params?.archived),
         ...sanitized
     };
 }
@@ -271,7 +271,8 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     let $schema = await dispatcher.getSchema({ itemPath: dataPath, params: options.params });
     //$schema = $schema?.items || $schema;
     const newOptions = { ...options, itemPath: dataPath, schema: $schema };
-    const { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
+    let { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
+    entryPointOptions.params = {...entryPointOptions.params, ...(property?.$data?.params || {})}
     
     let values = (await dataSource.dispatch(Action.GET, entryPointOptions) || []);
     if (!_.isArray(values)) {
