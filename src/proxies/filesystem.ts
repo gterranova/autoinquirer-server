@@ -92,7 +92,7 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     return { fullPath: fullPath.replace(RegExp(`\/?${property}$`), ''), folder, filename, property};  
   };
 
-  private getFiles(pathInfo: IPathInfo, depth = 1) : FileElement[] {
+  private getFiles(pathInfo: IPathInfo, depth = 1, relativePath = null) : FileElement[] {
     const { fullPath, folder, filename } = pathInfo;
     const prefix = this.rootUrl;
     if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
@@ -103,13 +103,15 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
             undefined;
           const item = {
             name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
-            slug: element.name,
-            dir: folder,
+            slug: _.compact([relativePath, element.name]).join('/'),
+            dir: [folder, element.name].join('/'),
             isFolder: element.isDirectory(),
             resourceUrl
           };
           if (depth > 1 && element.isDirectory()) {
-            return [item, ...this.getFiles({ fullPath: join(fullPath, element.name), folder: join(folder, element.name)}, depth-1)]
+            return [item, ...this.getFiles({ 
+              fullPath: [fullPath, element.name].join('/'), 
+              folder: [folder, element.name].join('/')}, depth-1, _.compact([relativePath, element.name]).join('/'))]
           }
           return [item];
       })
@@ -138,7 +140,8 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
   public async get(options: IDispatchOptions): Promise<FileElement[]|FileElement> {
     //console.log(`FILESYSTEM get(itemPath: ${options.itemPath}, schema: ${JSON.stringify(options.schema)}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${JSON.stringify(options.params)})`)
     const { fullPath, folder, filename, property } = this.getPathInfo(options);
-    const files = this.getFiles({ fullPath, folder, filename, property }, options.params?.depth);
+    const depth = options.params?.depth || options.query?.depth;
+    const files = this.getFiles({ fullPath, folder, filename, property }, depth);
     //console.log(`FILES = "${JSON.stringify(files, null, 2)}"`)
     if (filename) {
         if (property) {
