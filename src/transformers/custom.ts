@@ -1,86 +1,8 @@
-import * as fs from 'fs';
 import * as _ from 'lodash';
-import * as moment from 'moment';
-import * as Handlebars from 'handlebars';
 import { join, resolve } from 'path';
-import * as Zip from 'adm-zip';
-const { exec } = require('child_process');
-
 import { Action, IDispatchOptions } from 'autoinquirer';
 
-Handlebars.registerHelper("setVar", function(varName, varValue, options) {
-    options.data.root[varName] = varValue;
-});
-
-Handlebars.registerHelper("inc", (value, _) => {
-    return parseInt(value) + 1;
-});
-
-Handlebars.registerHelper("commaAnd", (list, sep, _) => {
-    if (!list || list.length == 0 ) return '';
-    if (list.length == 1 ) return list;
-    return list.slice(0, list.length-1).join(', ')+sep+list[list.length-1];
-});
-
-Handlebars.registerHelper("json", (value, _) => {
-    return JSON.stringify(value||'').toString();
-});
-
-Handlebars.registerHelper("blob", (value, _) => {
-    return value || "[•]";
-});
-
-Handlebars.registerHelper('ifeq', function(a, b, options) {
-    return (a==b)?options.fn(this):options.inverse(this);
-});
-
-Handlebars.registerHelper('ifmore', function(a, options) {
-    return a?.length>1?options.fn(this):options.inverse(this);
-});
-
-Handlebars.registerHelper('ownersCount', function(a, options) {
-    return _.sum(a.map(h => h.ownershipType !== 'usufruct'? 1: 0)).toString();
-});
-
-Handlebars.registerHelper('owners', function(a, options) {
-    return a.filter(h => h.ownershipType !== 'usufruct'? 1: 0);
-});
-
-
-Handlebars.registerPartial('parcelDescr', (a, _options) => {
-    const template = Handlebars.compile('**{{parcel}}**, {{#each portions as | portion |}}{{#if portion.name}}Porz. {{portion.name}} {{/if}}{{portion.quality}}, cl. {{portion.classe}}, ha {{portion.area}}, R.D. {{portion.rd}}, R.A. {{portion.ra}}{{#if @last}}{{else}}, {{/if}}{{/each}}');
-    return template(a);
-});
-
-Handlebars.registerPartial('parcelsDescr', (a, _options) => {
-    const more = a.parcelsGroup?.length>1;
-    const template = Handlebars.compile('{{#each parcelsGroup as | parcel |}}{{#ifmore ../parcelsGroup}}- {{/ifmore}}{{>parcelDescr parcel}};\n{{/each}}');
-    return template({...a, more});
-});
-
-Handlebars.registerPartial('landSheet', (a, _options) => {
-    const template = Handlebars.compile(`**foglio {{sheet}}** {{#ifmore parcelsGroup}}particelle:
-{{else}}particella{{/ifmore}}
-   {{>parcelsDescr .}}`);
-    return template(a);
-});
-
-const DateFormats = {
-    short: "DD/MM/YYYY",
-    long: "dddd DD.MM.YYYY"
-};
-
-// Use UI.registerHelper..
-Handlebars.registerHelper("formatDate", function(datetime, format) {
-    if (moment) {
-      // can use other formats like 'lll' too
-      format = DateFormats[format] || format;
-      return moment(datetime).format(format);
-    }
-    else {
-      return datetime;
-    }
-});
+import { generate } from './templates';
 
 export const lookupValues = (schemaPath: string | string[] = '', obj: any, currPath: string = ''): any => {
     const parts = typeof schemaPath === 'string' ? schemaPath.split('/') : schemaPath;
@@ -109,18 +31,25 @@ export const municipalities = (data: any) => {
     const items = _.values(lookupValues('lands/0/municipality', data));
     //console.log(items);
     items.push(data.municipality);
-    return _.uniq(items);
+    return _.compact(_.uniq(items));
 }
 
 function holdersKey(o: any) {
-    return o.holders && o.holders.length && 
-        _.sortBy(o.holders, 'name').map( h => [h.name, h.quota, h.ownershipType, h.titleChallengeableWithin]).join(' ')
+    if (o.holders && o.holders.length)
+        return _.sortBy(o.holders, 'name')
+            .map( h => [o.section || 'default', h.name, h.quota, h.ownershipType, h.titleChallengeableWithin])
+            .join(' ')
+    return o.section || 'default';
 }
 
 function holdersKeyOwnership(o: any) {
-    return o.holders && o.holders.length && 
-        _.sortBy(o.holders, 'name') //.filter(h => ['property', 'bare ownership'].indexOf(h.ownershipType) !== -1)
-            .map( h => [h.name, h.quota]).join(' ');
+    if (o.holders && o.holders.length)
+        return _.sortBy(o.holders, 'name') //.filter(h => ['property', 'bare ownership'].indexOf(h.ownershipType) !== -1)
+            .map( h => {
+                //console.log([o.section || 'default', h.name, h.quota, h.ownershipType]);
+                return [o.section || 'default', h.name, h.quota, h.ownershipType];
+        }).join(' ');
+    return o.section || 'default';
 }
 
 function resolveHolder(holderPath: string, data: any) {
@@ -155,7 +84,7 @@ function resolveLands(obj: any, data: any) {
         }
         return land;
     })
-    .orderBy(['sheet', 'parcel'])
+    .orderBy(o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
     .value();
 }
 
@@ -212,7 +141,7 @@ function sumLandsPrices(lands: any[], key: string = 'area', kind: string = 'pric
 
 function groupLandsBySheet(landsGroup: any[], data: any) {
     return _.chain(landsGroup)
-        .orderBy(['sheet', 'parcel'])
+        .orderBy(o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
         .groupBy('sheet')
         .values()
         .filter( o => o !== undefined && o.length && o[0] !== undefined)
@@ -223,7 +152,7 @@ function groupLandsBySheet(landsGroup: any[], data: any) {
                 holders: resolveHolders(lands[0].holders, data),
                 municipality: lands[0].municipality, 
                 parcels: _.sortBy(_.map(lands, (o) => o.parcel), (i) => _.toNumber(i)),
-                parcelsGroup: lands,
+                parcelsGroup: _.sortBy(lands, (l) => _.toNumber(l.parcel)),
                 totalArea: sumLandsAreas(lands)
             }
         })
@@ -235,7 +164,8 @@ function groupLandsBySheetAndOwnership(landsGroup: any[], data: any) {
         .groupBy(o => {
             try {
                 const holders = resolveHolders(o.holders, data);
-                return o.sheet+holdersKey({ holders });
+                //console.log(_.padStart(o.sheet, 6, '0')+holdersKey({ ...o, holders }))
+                return _.padStart(o.sheet, 6, '0')+holdersKey({ ...o, holders });
             } catch {
                 //console.log(o);
             }
@@ -244,35 +174,39 @@ function groupLandsBySheetAndOwnership(landsGroup: any[], data: any) {
         .values()
         .filter( o => o !== undefined && o.length && o[0] !== undefined)
         .map((lands) => {
-            //console.log(lands)
+            //console.log("AREA", sumLandsAreas(lands), lands)
             return { 
                 sheet: lands[0].sheet, 
+                section: lands[0].section, 
                 holders: resolveHolders(lands[0].holders, data),
                 municipality: lands[0].municipality, 
                 parcels: _.sortBy(_.map(lands, (o) => o.parcel), (i) => _.toNumber(i)),
-                parcelsGroup: lands,
+                parcelsGroup: _.sortBy(lands, (l) => _.toNumber(l.parcel)),
                 totalArea: sumLandsAreas(lands)
             }
         })
+        .orderBy( o => _.toNumber(o.sheet) )
         .value();
 }
 function groupByOwnersAndSheet(data: any) {
     return _.chain(lookupValues('lands/0', data))
         .values()
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
-        .orderBy(['sheet', 'parcel'])
+        .orderBy(o => o.section+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
         .groupBy(holdersKeyOwnership)
         .values()
         .map( (landsGroup) => {
-            const allHolders = _.chain(landsGroup).filter(l => l.holders?.length ).map(l => l.holders).flatten().uniqBy(h => ''+h.name+h.ownershipType+h.taxcode).value();
-            const holders = resolveHolders(allHolders, data);
-            const lands = _.sortBy(groupLandsBySheetAndOwnership(landsGroup, data), (i) => _.toNumber(i.sheet));
+            const allHolders = _.chain(landsGroup).filter(l => l.holders?.length ).map(l => l.holders).flatten().value();
+            const holders = _.uniqBy(resolveHolders(allHolders, data), h => ''+h.name+h.quota+h.ownershipType+h.taxcode);
+            const lands = _.sortBy(groupLandsBySheetAndOwnership(landsGroup, data), o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
             const grantors = _.uniqBy(holders, h => ''+h.name+h.taxcode);
-            const municipalities = _.uniq(_.values(lands).map( o => o.municipality ));
-            const totalPrice = new Intl.NumberFormat('it-IT', {
+            const municipalities = _.compact(_.uniq(_.values(lands).map( o => o.municipality )));
+            const challengeableHolders = _.filter(holders, h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021);
+            //if (challengeableHolders.length) console.log(challengeableHolders)
+            const totalPrice = landsGroup[0].prices?.price>0 ?new Intl.NumberFormat('it-IT', {
                 style: 'decimal',
                 minimumFractionDigits: 2
-              }).format(sumLandsPrices(_.flatten(landsGroup), 'area', 'price'));
+              }).format(sumLandsPrices(_.flatten(landsGroup), 'area', 'price')): 0;
 
             const area = sumLandsAreas(lands, 'totalArea');
 
@@ -285,7 +219,7 @@ function groupByOwnersAndSheet(data: any) {
                     return {...registration, lands: groupLandsBySheet(regLandsGroup, data)};
                 })
                 .uniqBy( reg => ''+reg.transcriptionRegPart+reg.transcriptionRegGen)
-                .filter( reg => /CONTRO/.exec(reg.transcriptionType) && reg.applicable)
+                .filter( reg => /*/CONTRO/.exec(reg.transcriptionType) &&*/ reg.applicable)
                 .map( reg => {
                     reg.transcriptionType = reg.transcriptionType.toLowerCase().split(' ')[0];
                     reg.deedType = reg.deedType.toLowerCase();
@@ -302,23 +236,33 @@ function groupByOwnersAndSheet(data: any) {
 
             return {
                 lands, 
+                section: landsGroup[0].section||'',
                 grantors,
                 holders,
                 municipalities,
                 registrations,
+                challengeableHolders,
                 totalArea: sumLandsAreas(lands, 'totalArea'),
-                depositPerHectar: new Intl.NumberFormat('it-IT', {
+                depositPerHectar: landsGroup[0].prices?.deposit>0 ? new Intl.NumberFormat('it-IT', {
                     style: 'decimal',
                     minimumFractionDigits: 2
-                  }).format(landsGroup[0].prices?.depositType==='per hectar'?landsGroup[0].prices.deposit: 0),
-                pricePerHectar: new Intl.NumberFormat('it-IT', {
+                }).format(landsGroup[0].prices?.depositType==='per hectar'?landsGroup[0].prices.deposit: 0): 0,
+                extensionPricePerHectar: landsGroup[0].prices?.extensionPrice>0 ? new Intl.NumberFormat('it-IT', {
                     style: 'decimal',
                     minimumFractionDigits: 2
-                  }).format(landsGroup[0].prices?.priceType==='per hectar'?landsGroup[0].prices.price: 0),
-                totalDeposit: new Intl.NumberFormat('it-IT', {
+                  }).format(landsGroup[0].prices?.extensionPriceType==='per hectar'?landsGroup[0].prices.extensionPrice: 0): 0,
+                pricePerHectar: landsGroup[0].prices?.price>0 ?new Intl.NumberFormat('it-IT', {
                     style: 'decimal',
                     minimumFractionDigits: 2
-                  }).format(sumLandsPrices(landsGroup, 'area', 'deposit')),
+                  }).format(landsGroup[0].prices?.priceType==='per hectar'?landsGroup[0].prices.price: 0): 0,
+                totalDeposit: landsGroup[0].prices?.deposit>0 ? new Intl.NumberFormat('it-IT', {
+                    style: 'decimal',
+                    minimumFractionDigits: 2
+                  }).format(sumLandsPrices(landsGroup, 'area', 'deposit')): 0,
+                totalExtensionPrice: landsGroup[0].prices?.extensionPrice>0 ? new Intl.NumberFormat('it-IT', {
+                    style: 'decimal',
+                    minimumFractionDigits: 2
+                  }).format(sumLandsPrices(landsGroup, 'area', 'extensionPrice')): 0,
                 totalPrice
             };
         })
@@ -329,7 +273,7 @@ function groupByOwnersAndSheet(data: any) {
 function groupByChallengeableOwnersAndSheet(data: any) {
     return _.chain(lookupValues('lands/0', data))
         .values()
-        .orderBy(['sheet', 'parcel'])
+        .orderBy(o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
         .map( (o) => {
             return {...o, holders: _.filter(o.holders, (h) => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021)};
          })
@@ -402,109 +346,13 @@ const lands = (data: any) => {
         municipalities: municipalities(_.cloneDeep(data)),
         allLand,
         landsGroups, 
+        sections: _.chain(landsGroups).map(l => l.section).uniq().value(),
         challengeableGroups,
         totalArea: sumLandsAreas(landsGroups, 'totalArea'),
         registrations: registrations(_.cloneDeep(data)),
         allRegistrations: _.groupBy(registrations(_.cloneDeep(data), true), 'name'),
         constraints: constraints(_.cloneDeep(data))
     }
-}
-
-async function generate(data: any, options: any) { // jshint ignore:line
-    //console.log(program.args, schemaFile, dataFile, options.project, options.template, options.output)
-
-    const template = Handlebars.compile(options.template);
-    //const template = Handlebars.compile(``);
-
-    const definitions = _.chain(options.definitions).split(' ').map(d => d.split('=').map( d => d.trim())).fromPairs().value();
-    const content = template({..._.cloneDeep(data), ...lands(_.cloneDeep(data)), ...definitions});
-    const regex = /\-{5} block: ([^-]*)\-{5}$/gm;
-    let remainder = content;
-    let blocks = [];
-    let blocksNames = [];
-    let m;
-
-    while ((m = regex.exec(content)) !== null) {
-        // This is necessary to avoid infinite loops with zero-width matches
-        if (m.index === regex.lastIndex) {
-            regex.lastIndex++;
-        }
-        
-        // The result can be accessed through the `m`-variable.
-        m.forEach((match, groupIndex) => {
-            if (groupIndex==0) {
-                blocks.push(remainder.slice(0, remainder.indexOf(match)).trim());
-                remainder = remainder.slice(remainder.indexOf(match)+match.length).trim();
-            }
-            else {
-                blocksNames.push(match.trim());
-            }
-            //console.log(`Found label, group ${groupIndex}: ${match}`);                
-        });
-    }
-    //console.log(blocksNames)
-    blocks.push(remainder);
-    blocks = blocks.filter( b => b.length != 0);
-
-    options.output.path = options.output.path.replace(/\\/g, '/');
-    const outputFilename = `${options.output.path}/${options.output.filename}.${blocks.length > 1?'zip':options.output.format}`;
-
-    var zip = new Zip();
-    await Promise.all(
-        blocks.map( async (blockContent, idx) => {
-        let filenameFinal = outputFilename;
-        if (blocks.length>1) {
-            const suffix = (blocksNames[idx] || ''+idx).slice(0, 50);
-            filenameFinal = `${options.output.path}/${options.output.filename}${blocks.length>2?' '+suffix:''} (${idx++}).${options.output.format}`
-        } 
-        const toc = options.toc?'--toc':'';
-
-        if (options.output.format==='md') {
-            fs.writeFileSync(filenameFinal, blockContent);
-            if (blocks.length>1) {
-                zip.addLocalFile(filenameFinal);
-                fs.unlinkSync(filenameFinal);
-            }
-    
-        } else if (options.output.format!=='md') {
-            const mdFile = filenameFinal.replace(`.${options.output.format}`, '.md');
-            fs.writeFileSync(mdFile, blockContent);
-            //const cmd = `pandoc "${mdFile}" -f markdown+pipe_tables --columns=43 --toc --wrap=preserve -t docx --reference-doc=${options.reference} -A ${options.reference} -o "${filenameFinal}"`;
-            let cmd = `pandoc "${mdFile}" -f markdown+pipe_tables --columns=43 ${toc} --wrap=preserve -t ${options.output.format} -o "${filenameFinal}"`;
-            if (options.output.format==='docx') {
-                cmd += ` --reference-doc=${options.reference} -A ${options.reference}`;
-            } else {
-                cmd += ' -s';
-            }
-            //console.log(cmd)
-            const result = await new Promise(function(resolve, reject) {
-                exec(cmd, (error, stdout) => {
-                    if (error) {
-                        reject(error);
-                        return;
-                    }
-
-                    if (blocks.length>1) {
-                        zip.addLocalFile(filenameFinal);
-                    }
-                    resolve(stdout.trim());
-                });
-            });
-            if (blocks.length>1) {
-                fs.unlinkSync(filenameFinal);
-            }
-            fs.unlinkSync(mdFile);
-            //console.log(result);
-        }
-    }));
-    //console.log(blocks.length)
-    if (blocks.length>1) {
-        zip.writeZip(outputFilename);
-    }
-    return outputFilename.slice(options.output.path.length+1);
-    //if (blocks.length>0) {
-    //    console.log(Object.keys(blocks))
-    //}
 }
 
 export async function template(methodName: Action, options?: IDispatchOptions): Promise<any> {
@@ -516,8 +364,10 @@ export async function template(methodName: Action, options?: IDispatchOptions): 
     if (options.value.template) {
         const template = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${options.value.template}` });
         const reference = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${template.reference}` });
-        const referenceFilename = resolve(process.cwd(), join(reference.dir, reference.name));
-        const generatedFilename = await generate(options.value, { 
+        const referenceFilename = resolve(process.cwd(), join(reference.path, reference.name));
+        //const definitions = _.chain(options.definitions).split(' ').map(d => d.split('=').map( d => d.trim())).fromPairs().value();
+        const data = {..._.cloneDeep(options.value), ...lands(_.cloneDeep(options.value)) /*, ...definitions*/}
+        const generatedFilename = await generate(data, { 
             template: template.content, 
             reference: referenceFilename,
             toc: template.toc || false,
@@ -526,7 +376,7 @@ export async function template(methodName: Action, options?: IDispatchOptions): 
                 filename: `${template.title}_${options.value.name}`, 
                 format: template.format || 'docx'
             }
-            });
+            }, this);
         return { type: 'redirect', url: `http://127.0.0.1:4000/public/${generatedFilename}`, target: '_blank' };    
     }
 }
