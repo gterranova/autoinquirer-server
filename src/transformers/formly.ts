@@ -14,6 +14,7 @@ export interface ISelectOption {
     value: string;
     path?: string;
     resourceUrl?: string;
+    iconUrl?: string;
     disabled?: boolean;
     [key: string]: any;
 }
@@ -167,7 +168,8 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                         }), 
                         path: newPath,
                         [`${schema.$groupBy}Id`]: schema.$groupBy && obj[schema.$groupBy],
-                        resourceUrl: obj.resourceUrl
+                        resourceUrl: obj.resourceUrl,
+                        iconUrl: obj.iconUrl,
                     };
             })) : []
         }
@@ -273,7 +275,7 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     const newOptions = { ...options, itemPath: dataPath, schema: $schema };
     let { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
     entryPointOptions.params = {...entryPointOptions.params, ...(property?.$data?.params || {})}
-    
+
     let values = (await dataSource.dispatch(Action.GET, entryPointOptions) || []);
     if (!_.isArray(values)) {
         console.log("EXPECTED ARRAY", {entryPointOptions, values });
@@ -306,6 +308,7 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
             value: finalPath,
             path: finalPath,
             resourceUrl: value.resourceUrl,
+            iconUrl: value.iconUrl,
             disabled: options.itemPath.startsWith(finalPath),
             ...group(value)
         };

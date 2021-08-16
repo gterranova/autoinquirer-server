@@ -2,15 +2,18 @@ import * as fs from "fs";
 //import * as del from "delete";
 import * as crypto from 'crypto';
 import * as _ from "lodash";
+import * as moment from 'moment';
 import { join } from 'path';
+import { lookup } from 'mime-types';
 
 import { AbstractDispatcher } from 'autoinquirer';
 import { Action, IDispatchOptions, IProperty } from 'autoinquirer';
 import { AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete } from 'autoinquirer';
 
 import { JsonSchema } from 'autoinquirer';
-import * as filesystemSchema from './filesystemSchema.json';
 import { absolute } from '../transformers/common';
+import * as filesystemSchema from './filesystemSchema.json';
+import * as iconsManifest from './iconsManifest.json';
 
 
 function hash(key) {
@@ -22,8 +25,12 @@ export interface FileElement {
   isFolder: boolean;
   name: string;
   slug: string;
-  dir: string;
+  path: string;
+  lastModifiedDate: string;
+  size: number;
+  type: string;
   resourceUrl?: string;
+  iconUrl?: string;
 };
 
 interface IPathInfo {
@@ -43,7 +50,7 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     //console.log("constructor", parentDispatcher, rootDir);
     this.rootDir = rootDir || process.cwd();
     this.rootUrl = rootUrl || '';
-    // JSONSCHEMA data relative to package dir
+    // JSONSCHEMA data relative to package path
     this.schemaSource = new JsonSchema(filesystemSchema);
   }
   public async connect(parentDispatcher: AbstractDispatcher) {
@@ -98,17 +105,27 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
       return _.chain(fs.readdirSync(fullPath, { withFileTypes: true }))
         .map((element) => {
-          const resourceUrl = !element.isDirectory()? 
+          const isDir = element.isDirectory();
+          const resourceUrl = !isDir? 
             encodeURI(absolute([folder, element.name].join('/'), this.rootUrl).replace(RegExp('^'+prefix), '')) : 
             undefined;
-          const item = {
-            name: `${element.isDirectory()?'[ ':''}${element.name}${element.isDirectory()?' ]':''}`,
+          const mimetype = !isDir? lookup(element.name) || 'application/octet-stream': 'folder/documents';
+          const iconname = iconsManifest.Synonyms[mimetype.replace('/', '-')] || mimetype.replace('/', '-');
+          const iconUrl = encodeURI(absolute(`./assets/mimetypes-icons/scalable/${iconname}.svg`, this.rootUrl).replace(RegExp('^'+prefix), ''));
+    
+          const { mtime, size } = fs.statSync([folder, element.name].join('/'));
+          const item: FileElement = {
+            name: element.name, //`${isDir?'[ ':''}${element.name}${isDir?' ]':''}`,
             slug: _.compact([relativePath, element.name]).join('/'),
-            dir: [folder, element.name].join('/'),
-            isFolder: element.isDirectory(),
-            resourceUrl
+            path: [folder, element.name].join('/'),
+            lastModifiedDate: moment(mtime).toISOString(),
+            type: mimetype,
+            size: size,
+            isFolder: isDir,
+            resourceUrl,
+            iconUrl
           };
-          if (depth > 1 && element.isDirectory()) {
+          if (depth > 1 && isDir) {
             return [item, ...this.getFiles({ 
               fullPath: [fullPath, element.name].join('/'), 
               folder: [folder, element.name].join('/')}, depth-1, _.compact([relativePath, element.name]).join('/'))]
@@ -119,13 +136,21 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
       .sortBy([o => !o.isFolder, 'name'])
       .value();
     } else {
+      const mimetype = lookup(filename) || 'application/octet-stream';
+      const iconname = iconsManifest.Synonyms[mimetype.replace('/', '-')] || mimetype.replace('/', '-');
+      const iconUrl = encodeURI(absolute(`./assets/mimetypes-icons/scalable/${iconname}.svg`, this.rootUrl).replace(RegExp('^'+prefix), ''));
+      const { mtime, size } = fs.statSync([folder, filename].join('/'));
       const resourceUrl = encodeURI(absolute([folder, filename].join('/'), this.rootUrl).replace(RegExp('^'+prefix), ''));
       return [{
         name: filename,
         slug: filename,
-        dir: folder,
+        path: folder,
+        lastModifiedDate: moment(mtime).toISOString(),
+        type: mimetype,
+        size: size,
         isFolder: false,
-        resourceUrl
+        resourceUrl,
+        iconUrl
       }]
     }
   }  
@@ -183,11 +208,11 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     if (options?.value !== undefined) {
       if (options?.itemPath) {
         const files = [];
-        const dir = join(this.rootDir, options?.params?.rootDir);
-        for await (const f of getFiles(dir, options?.itemPath)) { files.push(f); };
+        const path = join(this.rootDir, options?.params?.rootDir);
+        for await (const f of getFiles(path, options?.itemPath)) { files.push(f); };
         return files.map((f: FileElement) => {
-          const currentPath = join(f.dir, f.name);
-          const newPath = join(this.rootDir, options?.params?.rootDir, options?.value?.dir, options?.value?.name);
+          const currentPath = join(f.path, f.name);
+          const newPath = join(this.rootDir, options?.params?.rootDir, options?.value?.path, options?.value?.name);
           if (currentPath !== newPath) {
             fs.renameSync(currentPath, newPath)
           }
@@ -203,9 +228,9 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     /*
     if (options?.itemPath) {
       const files = [];
-      const dir = join(this.rootDir, options?.params?.rootDir);
-      for await (const f of getFiles(dir, options?.itemPath)) { files.push(f); };
-      //del(files.map((f: FileElement) => join(f.dir, f.name)));
+      const path = join(this.rootDir, options?.params?.rootDir);
+      for await (const f of getFiles(path, options?.itemPath)) { files.push(f); };
+      //del(files.map((f: FileElement) => join(f.path, f.name)));
     }
     */
   };

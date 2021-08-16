@@ -14,9 +14,24 @@
                 "title": "Slug",
                 "readOnly": true
             },
-            "dir": {
+            "path": {
                 "type": "string",
-                "title": "Dir",
+                "title": "Path",
+                "readOnly": true
+            },
+            "lastModifiedDate": {
+                "type": "string",
+                "format": "date-time",
+                "title": "Last Modified",
+                "readOnly": true
+            },
+            "type": {
+                "type": "string",
+                "title": "MIME type",
+                "readOnly": true
+            },
+            "size": {
+                "type": "number",
                 "readOnly": true
             },
             "isFolder": {
@@ -27,6 +42,11 @@
             "resourceUrl": {
                 "type": "string",
                 "title": "Resource URL",
+                "readOnly": true
+            },
+            "iconUrl": {
+                "type": "string",
+                "title": "Icon URL",
                 "readOnly": true
             }
         },
