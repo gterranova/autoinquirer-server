@@ -21,12 +21,16 @@ export async function layout(methodName: Action, options?: IDispatchOptions): Pr
     options.value = undefined;
 
     return { 
-        type: 'layout', 
-        children: await Promise.all([
-            //await this.makeAuth(options),
-            this.getTransformer(TransformerQuery.BREADCRUMB)(methodName, options),
-            this.getTransformer(TransformerQuery.FORMLY)(methodName, options)
-        ])
+        type: 'sidenav',
+        ...await this.getTransformer(TransformerQuery.SIDENAV)(methodName, options),
+        children: [{
+            type: 'layout', 
+            children: await Promise.all([
+                //await this.makeAuth(options),
+                this.getTransformer(TransformerQuery.BREADCRUMB)(methodName, options),
+                this.getTransformer(TransformerQuery.FORMLY)(methodName, options)
+            ])    
+        }]
     };
     //return this.evaluate(methodName, itemPath, schema, value);
 }

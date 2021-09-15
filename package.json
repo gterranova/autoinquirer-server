@@ -9,7 +9,7 @@
     "watch": "tsc -w -p src/tsconfig.json",
     "clean": "rimraf dist/server",
     "start": "npm run build && node dist/server.js ../autoinquirer-composer/examples/schema.json ../autoinquirer-composer/examples/data.json",
-    "serve": "node --inspect=5858 -r ts-node/register ./src/server.ts ..\\duediligence",
+    "serve": "node --inspect=5858 -r ts-node/register ./src/server.ts ..\\ddprogressum",
     "start:watch": "nodemon"
   },
   "author": "",
@@ -32,6 +32,7 @@
     "json-stringify-safe": "^5.0.1",
     "jsonwebtoken": "^8.5.1",
     "lodash": "^4.17.20",
+    "mime-types": "^2.1.29",
     "moment": "^2.29.1",
     "morgan": "^1.9.1",
     "socket.io": "^2.4.0"
@@ -41,6 +42,7 @@
     "@types/express": "^4.17.2",
     "@types/json-schema": "^7.0.4",
     "@types/jsonwebtoken": "^8.3.9",
+    "@types/mime-types": "^2.1.0",
     "@types/node": "^12.12.17",
     "nodemon": "^2.0.3",
     "rimraf": "^3.0.2",

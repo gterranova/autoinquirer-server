@@ -17,6 +17,6 @@ export async function breadcrumb(_methodName: Action, options?: IDispatchOptions
             return { value, label: decode((await getName(this, {itemPath: value })).trim()) };
         }))
     ]);
-    return { type: 'breadcrumb', pathParts, ...cursor };
+    return { type: 'breadcrumb', user: _.omit(options.user, 'password'), pathParts, ...cursor };
 }
 

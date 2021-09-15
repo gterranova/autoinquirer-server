@@ -16,7 +16,7 @@
         },
         "login": {
             "type": "object",
-            "$title": "{{email}}",
+            "title": "Login",
             "properties": {
                 "email": {
                     "type": "string",
@@ -55,7 +55,7 @@
         },
         "register": {
             "type": "object",
-            "$title": "{{email}}",
+            "title": "Register",
             "writeOnly": true,
             "properties": {
                 "email": {

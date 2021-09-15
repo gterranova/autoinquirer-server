@@ -11,6 +11,7 @@ export const TransformerQuery = {
     REDIRECT: 'redirect',
     TEMPLATE: 'template',
     REPORT: 'report',
+    SIDENAV: 'sidenav',
 };
 
 export function absolute(testPath: string, absolutePath: string): string {

@@ -54,8 +54,11 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
       secret: 'secret',
       algorithms: ['HS256'],
       credentialsRequired: false
-    }).unless({path: ['/auth/login']}),
+    }).unless({path: ['/auth/login', '/api/auth/login','/auth/register', '/api/auth/register', '/auth/activate', '/api/auth/activate']}),
     function (err, req, res, next) {
+      if (err.status == 401) {
+        return res.json({ type: 'redirect', url: `/auth/login`, target: '_self' });
+      }
       if (err.code === 'invalid_token') return next();
       return next(err);
     }
