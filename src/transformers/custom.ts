@@ -127,16 +127,21 @@ function sumLandsAreas(lands: any[], key: string = 'area'): string {
 
 function sumLandsPrices(lands: any[], key: string = 'area', kind: string = 'price'): number {
     return _.sum(_.map(lands, (o) => {
-        if (o.prices !== undefined) {
-            if (o.prices[kind+'Type'] === 'per hectar') {
-                return o.prices[kind] * (o.portions? sumPortionsAreas(o.portions) : areaToFloat(o[key]));
-            } else {
-                return o.prices[kind];
-            }
-        }
-        //console.log("no price for", o)
-        return 0;
+        const area = o.portions? sumPortionsAreas(o.portions) : areaToFloat(o[key]);
+        return _sumLandsPrices(o, area, kind);
     }));
+}
+
+function _sumLandsPrices(o: any, area: number, kind: string = 'price'): number {
+    if (o.prices !== undefined) {
+        if (o.prices[kind+'Type'] === 'per hectar') {
+            return o.prices[kind] * area;
+        } else {
+            return o.prices[kind];
+        }
+    }
+    //console.log("no price for", o)
+    return 0;
 }
 
 function groupLandsBySheet(landsGroup: any[], data: any) {
@@ -324,7 +329,7 @@ function constraints(data: any) {
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
         .map( (registration) => {
             const landsGroup = resolveLands(registration.lands, data);
-            const lands = groupLandsBySheet(landsGroup, data);
+            const lands = groupLandsBySheetAndOwnership(landsGroup, data);
             return {
                 ...registration,
                 lands, 
@@ -355,6 +360,65 @@ const lands = (data: any) => {
     }
 }
 
+const contracts = (data: any) => {
+    return { contracts: _.chain(data.contracts).map( contract => {
+        const lands = resolveLands(contract.lands, data);
+        const landGroup = _.sortBy(groupLandsBySheetAndOwnership(lands, data), o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
+        const grantors = _.map(contract.grantors, grantor => resolveHolder(grantor, data));
+
+        const allHolders = _.chain(lands).filter(l => l.holders?.length ).map(l => l.holders).flatten().value();
+        const holders = _.uniqBy(resolveHolders(allHolders, data), h => ''+h.name+h.quota+h.ownershipType+h.taxcode);
+        const challengeableHolders = _.filter(holders, h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021);
+
+        const registrations = _.chain(resolveRegistrations(lands, data))
+        .map( (registration) => {
+            //registration.holder = resolveHolder(registration.holder, data);
+            const regLandsGroup = resolveLands(registration.lands, data);
+            //registration.lands = groupLandsBySheet(regLandsGroup);
+            return {...registration, lands: groupLandsBySheet(regLandsGroup, data)};
+        })
+        .uniqBy( reg => ''+reg.transcriptionRegPart+reg.transcriptionRegGen)
+        .filter( reg => /*/CONTRO/.exec(reg.transcriptionType) &&*/ reg.applicable)
+        .map( reg => {
+            reg.transcriptionType = reg.transcriptionType.toLowerCase().split(' ')[0];
+            reg.deedType = reg.deedType.toLowerCase();
+            reg.officer = reg.officer?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+            if (reg.holder && typeof reg.holder == 'string') {
+                reg.holder = resolveHolder(reg.holder, data)
+            }
+            reg.name = (reg.holder?.name || reg.name).trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+            reg.deedDescr = reg.deedDescr.toLowerCase(); //?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+            //console.log(reg.title);                    
+            return reg;
+        })
+        .value();
+
+        const totalArea = areaToString(_.sum(_.map(landGroup, (o) => areaToFloat(o.totalArea))));
+        const totalPrice = contract.prices?.price>0 ?new Intl.NumberFormat('it-IT', {
+            style: 'decimal',
+            minimumFractionDigits: 2
+          }).format(_sumLandsPrices(contract, areaToFloat(totalArea), 'price')): 0;
+        const totalDeposit = contract.prices?.price>0 ?new Intl.NumberFormat('it-IT', {
+            style: 'decimal',
+            minimumFractionDigits: 2
+        }).format(_sumLandsPrices(contract, areaToFloat(totalArea), 'deposit')): 0;
+        const totalExtensionPrice = contract.prices?.price>0 ?new Intl.NumberFormat('it-IT', {
+            style: 'decimal',
+            minimumFractionDigits: 2
+        }).format(_sumLandsPrices(contract, areaToFloat(totalArea), 'extensionPrice')): 0;
+
+        return { 
+            ...contract, 
+            landGroup, 
+            grantors, 
+            totalArea, 
+            totalPrice, totalDeposit, totalExtensionPrice,
+            challengeableHolders,
+            registrations,
+        }
+    }).value() }
+}
+
 export async function template(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
@@ -366,7 +430,7 @@ export async function template(methodName: Action, options?: IDispatchOptions): 
         const reference = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${template.reference}` });
         const referenceFilename = resolve(process.cwd(), join(reference.path, reference.name));
         //const definitions = _.chain(options.definitions).split(' ').map(d => d.split('=').map( d => d.trim())).fromPairs().value();
-        const data = {..._.cloneDeep(options.value), ...lands(_.cloneDeep(options.value)) /*, ...definitions*/}
+        const data = {..._.cloneDeep(options.value), ...lands(_.cloneDeep(options.value)), ...contracts(_.cloneDeep(options.value)) /*, ...definitions*/}
         const generatedFilename = await generate(data, { 
             template: template.content, 
             reference: referenceFilename,

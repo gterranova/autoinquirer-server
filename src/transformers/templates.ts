@@ -10,6 +10,22 @@ Handlebars.registerHelper("slurp", (value, _) => {
     return (value?.fn?.(this)||value||'').toString().trim().split(/\n+/).join('\t\t');
 });
 
+Handlebars.registerHelper("lowercase", (value, _) => {
+    return value?.toLowerCase() || '';
+});
+
+Handlebars.registerHelper("uppercase", (value, _) => {
+    return value?.toUpperCase() || '';
+});
+
+Handlebars.registerHelper("capitalizeFirst", (value, _) => {
+    return value? value.charAt(0).toUpperCase() + value.slice(1): '';
+});
+
+Handlebars.registerHelper("capitalizeEach", (value, _) => {
+    return value?.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1));
+});
+
 Handlebars.registerHelper('currency', function(amount, options) {
     var num = new Number(amount);
     if (_.isNaN(num)) return '-';
@@ -75,7 +91,7 @@ Handlebars.registerHelper('ifeq', function(a, b, options) {
 });
 
 Handlebars.registerHelper('ifnz', function(a, options) {
-    return (parseInt(a, 10)>0)?options.fn(this):options.inverse(this);
+    return (a&&parseInt(a, 10)>0)?options.fn(this):options.inverse(this);
 });
 
 Handlebars.registerHelper('ifany', function(a, options) {
