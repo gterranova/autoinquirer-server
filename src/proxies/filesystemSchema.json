@@ -3,7 +3,7 @@
     "$title": "{{#ifeq options.itemPath 'filesystem'}}Files{{else}}{{key}}{{/ifeq}}",
     "items": {
         "type": "object",
-        "$title": "{{name}}",
+        "$title": "{{name}}{{#if isFolder}}{{else}}{{/if}}",
         "properties": {
             "name": {
                 "type": "string",

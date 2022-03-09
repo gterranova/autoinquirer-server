@@ -100,7 +100,8 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
   };
 
   private getFiles(pathInfo: IPathInfo, depth = 1, relativePath = null) : FileElement[] {
-    const { fullPath, folder, filename } = pathInfo;
+    let { fullPath, folder, filename } = pathInfo;
+    folder = folder.replace('/./','/');
     const prefix = this.rootUrl;
     if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
       return _.chain(fs.readdirSync(fullPath, { withFileTypes: true }))
@@ -133,7 +134,7 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
           return [item];
       })
       .flattenDeep()
-      .sortBy([o => !o.isFolder, 'name'])
+      .sortBy([o => !o.isFolder, 'path', 'name'])
       .value();
     } else {
       const mimetype = lookup(filename) || 'application/octet-stream';
@@ -144,7 +145,7 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
       return [{
         name: filename,
         slug: filename,
-        path: folder,
+        path: folder.replace(RegExp('^'+this.rootDir+'/'), ''),
         lastModifiedDate: moment(mtime).toISOString(),
         type: mimetype,
         size: size,
