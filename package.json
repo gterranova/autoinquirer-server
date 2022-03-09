@@ -8,7 +8,7 @@
     "build": "npm run clean && tsc --build src/tsconfig.json",
     "watch": "tsc -w -p src/tsconfig.json",
     "clean": "rimraf dist/server",
-    "start": "npm run build && node dist/server.js ../autoinquirer-composer/examples/schema.json ../autoinquirer-composer/examples/data.json",
+    "start": "node . \"C:\\Users\\G.TERRANOVA\\Documents\\SZCloud\\Due Diligence\"",
     "serve": "node --inspect=5858 -r ts-node/register ./src/server.ts ..\\ddprogressum",
     "start:watch": "nodemon"
   },

@@ -52,6 +52,12 @@ export async function formlyze(methodName: Action, options?: IDispatchOptions): 
     if (sanitized?.schema?.widget?.formlyConfig?.templateOptions) {
         sanitized.schema.widget.formlyConfig.templateOptions.expanded = true;
     }
+    if (sanitized?.schema?.widget?.formlyConfig?.expressionProperties && /parent/.test(Object.values(sanitized?.schema?.widget?.formlyConfig?.expressionProperties).join())) {
+        sanitized.schema.widget.formlyConfig.expressionProperties = undefined;
+    }
+    if (sanitized?.schema?.widget?.formlyConfig?.hideExpression && /parent/.test(sanitized?.schema?.widget?.formlyConfig?.hideExpression)) {
+        sanitized.schema.widget.formlyConfig.hideExpression = undefined;
+    }
     return {
         type: sanitized?.schema?.widget?.formlyConfig?.componentType || 'form',
         path: fullPath(/*entryPointOptions?.parentPath*/null, options.itemPath, options.params?.archived),
@@ -271,7 +277,7 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     }
     const dataPath = property?.$data?.path ? absolute(property.$data.path||'', options.itemPath) : '';
     let $schema = await dispatcher.getSchema({ itemPath: dataPath, params: options.params });
-    //$schema = $schema?.items || $schema;
+    // $schema = $schema?.items || $schema;
     const newOptions = { ...options, itemPath: dataPath, schema: $schema };
     let { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
     entryPointOptions.params = {...entryPointOptions.params, ...(property?.$data?.params || {})}
@@ -302,7 +308,7 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
             label: decode(isObject(value) ? await getName(dispatcher, {
                 itemPath: finalPath,
                 value, 
-                schema: $schema.items,
+                schema: $schema.items || $schema,
                 params: options.params
             }) : value),
             value: finalPath,

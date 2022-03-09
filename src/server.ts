@@ -31,6 +31,7 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   const DIST_FOLDER = join(process.cwd(), 'dist', 'browser');
   process.chdir(dirname(schemaFile));
   const PUBLIC_FOLDER = join(process.cwd(), 'public');
+  const TEMPLATES_FOLDER = join(process.cwd(), '_templates');
 
   const renderer = new Dispatcher(schemaFile, dataFile);
   renderer.registerProxies(proxies);
@@ -90,6 +91,14 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   });
   */
   // Server static files from /browser
+  app.use(
+    '/_templates',
+    (req, res) => {
+      //console.log(decodeURIComponent(req.url))
+      res.sendFile(join(TEMPLATES_FOLDER, decodeURIComponent(req.url)));
+    }
+  );
+
   app.use(
     '/public',
     (req, res) => {
