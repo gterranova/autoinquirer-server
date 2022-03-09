@@ -176,7 +176,7 @@ async function processIncludes(content: string, dispatcher: any) {
     }
     //console.log(blocksNames)
     blocks.push(remainder);
-    blocks = blocks.filter(b => b.length != 0);
+    blocks = blocks.filter(b => b?.length != 0);
     return blocks.join('\n');
 }
 
@@ -272,7 +272,7 @@ export async function generate(data: any, options: any, dispatcher: any) { // js
             //const cmd = `pandoc "${mdFile}" -f markdown+pipe_tables --columns=43 --toc --wrap=preserve -t docx --reference-doc=${options.reference} -A ${options.reference} -o "${filenameFinal}"`;
             let cmd = `pandoc "${mdFile}" -f markdown+pipe_tables --columns=43 ${toc} --wrap=preserve -t ${options.output.format} -o "${filenameFinal}"`;
             if (options.output.format==='docx') {
-                cmd += ` --reference-doc=${options.reference} -A ${options.reference}`;
+                cmd += ` --reference-doc="${options.reference}" -A "${options.reference}"`;
             } else if (options.output.format==='html') {
                 cmd += ` -s --css "./pandoc.css"`;
             } else {

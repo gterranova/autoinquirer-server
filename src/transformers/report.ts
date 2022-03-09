@@ -137,7 +137,9 @@ function domande(data: any) {
 }
 
 const ddr = (data: any) => {
+    const sezioni = _.chain(data.documenti).map(d => d.sezione).uniq().value();
     return {
+        sezioni,
         commesse: commesse(_.cloneDeep(data)),
         domande: domande(_.cloneDeep(data)),
         affidamenti: affidamenti(_.cloneDeep(data)),

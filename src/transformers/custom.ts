@@ -84,13 +84,13 @@ function resolveLands(obj: any, data: any) {
         }
         return land;
     })
-    .orderBy(o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
+    .orderBy(o => o? _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'): '')
     .value();
 }
 
 function resolveRegistrations(obj: any, data: any) {
     if (!obj) return [];
-    return _.chain(obj.map((land) => land.registrations || [])).flatten().map( reg => {
+    return _.chain(obj.map((land) => land?.registrations || [])).flatten().map( reg => {
         //console.log(reg);
         const projectPath = reg.split('/').slice(2)
         return _.values(lookupValues(projectPath, data))[0];
@@ -146,8 +146,8 @@ function _sumLandsPrices(o: any, area: number, kind: string = 'price'): number {
 
 function groupLandsBySheet(landsGroup: any[], data: any) {
     return _.chain(landsGroup)
-        .orderBy(o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
-        .groupBy('sheet')
+        .orderBy(o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
+        .groupBy(o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0'))
         .values()
         .filter( o => o !== undefined && o.length && o[0] !== undefined)
         .map((lands) => {
@@ -187,7 +187,9 @@ function groupLandsBySheetAndOwnership(landsGroup: any[], data: any) {
                 municipality: lands[0].municipality, 
                 parcels: _.sortBy(_.map(lands, (o) => o.parcel), (i) => _.toNumber(i)),
                 parcelsGroup: _.sortBy(lands, (l) => _.toNumber(l.parcel)),
-                totalArea: sumLandsAreas(lands)
+                totalArea: sumLandsAreas(lands),
+                notarialReports: lands[0].notarialReports,
+                CDUs: lands[0].CDUs
             }
         })
         .orderBy( o => _.toNumber(o.sheet) )
@@ -197,13 +199,13 @@ function groupByOwnersAndSheet(data: any) {
     return _.chain(lookupValues('lands/0', data))
         .values()
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
-        .orderBy(o => o.section+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
+        .orderBy(o => o.section+_.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
         .groupBy(holdersKeyOwnership)
         .values()
         .map( (landsGroup) => {
-            const allHolders = _.chain(landsGroup).filter(l => l.holders?.length ).map(l => l.holders).flatten().value();
+            const allHolders = _.chain(landsGroup).filter(l => l?.holders?.length ).map(l => l.holders).flatten().value();
             const holders = _.uniqBy(resolveHolders(allHolders, data), h => ''+h.name+h.quota+h.ownershipType+h.taxcode);
-            const lands = _.sortBy(groupLandsBySheetAndOwnership(landsGroup, data), o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
+            const lands = _.sortBy(groupLandsBySheetAndOwnership(landsGroup, data), o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
             const grantors = _.uniqBy(holders, h => ''+h.name+h.taxcode);
             const municipalities = _.compact(_.uniq(_.values(lands).map( o => o.municipality )));
             const challengeableHolders = _.filter(holders, h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021);
@@ -217,6 +219,7 @@ function groupByOwnersAndSheet(data: any) {
 
             //console.log("totalprice", totalPrice, area, 45000*areaToFloat(area))
             const registrations = _.chain(resolveRegistrations(landsGroup, data))
+                .filter()
                 .map( (registration) => {
                     //registration.holder = resolveHolder(registration.holder, data);
                     const regLandsGroup = resolveLands(registration.lands, data);
@@ -278,7 +281,7 @@ function groupByOwnersAndSheet(data: any) {
 function groupByChallengeableOwnersAndSheet(data: any) {
     return _.chain(lookupValues('lands/0', data))
         .values()
-        .orderBy(o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
+        .orderBy(o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
         .map( (o) => {
             return {...o, holders: _.filter(o.holders, (h) => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021)};
          })
@@ -329,7 +332,7 @@ function constraints(data: any) {
         //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
         .map( (registration) => {
             const landsGroup = resolveLands(registration.lands, data);
-            const lands = groupLandsBySheetAndOwnership(landsGroup, data);
+            const lands = groupLandsBySheet(landsGroup, data);
             return {
                 ...registration,
                 lands, 
@@ -339,6 +342,42 @@ function constraints(data: any) {
         })
         .value();
 
+}
+
+function notarialReports(data: any) {
+    return _.chain(lookupValues('notarialReports/0', data))
+        .values()
+        .sortBy("date")
+        //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
+        .map( (rnv) => {
+            const landsGroup = resolveLands(rnv.lands, data);
+            const lands = groupLandsBySheet(landsGroup, data);
+            return {
+                ...rnv,
+                lands, 
+                //holders: resolveHolders(landsBySheet[_.keys(landsBySheet)[0]][0].holders, data),
+                //totalArea: areaToString(_.sum(_.map(lands, (o) => areaToFloat(o.totalArea))))
+            };
+        })
+        .value();
+}
+
+function CDUs(data: any) {
+    return _.chain(lookupValues('CDUs/0', data))
+        .values()
+        .sortBy("date")        
+        //.map( (o) => _.pick(o, ['sheet', 'parcel', 'holders']))
+        .map( (cdu) => {
+            const landsGroup = resolveLands(cdu.lands, data);
+            const lands = groupLandsBySheet(landsGroup, data);
+            return {
+                ...cdu,
+                lands, 
+                //holders: resolveHolders(landsBySheet[_.keys(landsBySheet)[0]][0].holders, data),
+                //totalArea: areaToString(_.sum(_.map(lands, (o) => areaToFloat(o.totalArea))))
+            };
+        })
+        .value();
 }
 
 const lands = (data: any) => {
@@ -356,17 +395,19 @@ const lands = (data: any) => {
         totalArea: sumLandsAreas(landsGroups, 'totalArea'),
         registrations: registrations(_.cloneDeep(data)),
         allRegistrations: _.groupBy(registrations(_.cloneDeep(data), true), 'name'),
-        constraints: constraints(_.cloneDeep(data))
+        constraints: constraints(_.cloneDeep(data)),
+        notarialReports: notarialReports(_.cloneDeep(data)),
+        CDUs: CDUs(_.cloneDeep(data))
     }
 }
 
 const contracts = (data: any) => {
     return { contracts: _.chain(data.contracts).map( contract => {
         const lands = resolveLands(contract.lands, data);
-        const landGroup = _.sortBy(groupLandsBySheetAndOwnership(lands, data), o => _.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
+        const landGroup = _.sortBy(groupLandsBySheetAndOwnership(lands, data), o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
         const grantors = _.map(contract.grantors, grantor => resolveHolder(grantor, data));
 
-        const allHolders = _.chain(lands).filter(l => l.holders?.length ).map(l => l.holders).flatten().value();
+        const allHolders = _.chain(lands).filter(l => l?.holders?.length ).map(l => l.holders).flatten().value();
         const holders = _.uniqBy(resolveHolders(allHolders, data), h => ''+h.name+h.quota+h.ownershipType+h.taxcode);
         const challengeableHolders = _.filter(holders, h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021);
 
@@ -419,6 +460,15 @@ const contracts = (data: any) => {
     }).value() }
 }
 
+const documents = (data: any) => {
+    const authorizationDocuments = _.orderBy(data.authorizationDocuments, o => [o.data, o.titolo]);
+    const sezioni = _.chain(authorizationDocuments || []).map(d => d.sezione).uniq().value();
+    return {
+        sezioni,
+        authorizationDocuments
+    }
+}
+
 export async function template(methodName: Action, options?: IDispatchOptions): Promise<any> {
     options = options || {};
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
@@ -430,7 +480,7 @@ export async function template(methodName: Action, options?: IDispatchOptions): 
         const reference = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${template.reference}` });
         const referenceFilename = resolve(process.cwd(), join(reference.path, reference.name));
         //const definitions = _.chain(options.definitions).split(' ').map(d => d.split('=').map( d => d.trim())).fromPairs().value();
-        const data = {..._.cloneDeep(options.value), ...lands(_.cloneDeep(options.value)), ...contracts(_.cloneDeep(options.value)) /*, ...definitions*/}
+        const data = {..._.cloneDeep(options.value), ...documents(_.cloneDeep(options.value)), ...lands(_.cloneDeep(options.value)), ...contracts(_.cloneDeep(options.value)) /*, ...definitions*/}
         const generatedFilename = await generate(data, { 
             template: template.content, 
             reference: referenceFilename,
