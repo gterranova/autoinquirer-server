@@ -33,7 +33,7 @@
     "jsonwebtoken": "^8.5.1",
     "lodash": "^4.17.20",
     "mime-types": "^2.1.29",
-    "moment": "^2.29.1",
+    "moment": "^2.29.4",
     "morgan": "^1.9.1",
     "socket.io": "^2.4.0"
   },
