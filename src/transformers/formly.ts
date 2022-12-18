@@ -282,7 +282,10 @@ async function getEnumOptions(dispatcher: Dispatcher, options: IDispatchOptions)
     let { dataSource, entryPointOptions } = await dispatcher.getDataSourceInfo(newOptions);
     entryPointOptions.params = {...entryPointOptions.params, ...(property?.$data?.params || {})}
 
-    let values = (await dataSource.dispatch(Action.GET, entryPointOptions) || []);
+    let values = (await dataSource.dispatch(Action.GET, {...entryPointOptions, 
+        // TODO: understand why
+        itemPath: entryPointOptions.itemPath.replace(/^#\/?/,'') 
+    }) || []);
     if (!_.isArray(values)) {
         console.log("EXPECTED ARRAY", {entryPointOptions, values });
         throw new Error("EXPECTED ARRAY");

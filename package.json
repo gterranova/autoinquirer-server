@@ -9,7 +9,7 @@
     "watch": "tsc -w -p src/tsconfig.json",
     "clean": "rimraf dist/server",
     "start": "node . \"C:\\Users\\G.TERRANOVA\\Documents\\SZCloud\\Due Diligence\"",
-    "serve": "node --inspect=5858 -r ts-node/register ./src/server.ts ..\\ddprogressum",
+    "serve": "node --inspect=5858 -r ts-node/register ./src/server.ts \"C:\\Users\\G.TERRANOVA\\Documents\\SZCloud\\Due Diligence\"",
     "start:watch": "nodemon"
   },
   "author": "",
