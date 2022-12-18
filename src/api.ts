@@ -52,7 +52,7 @@ export const apiRoutes = (renderer: Dispatcher) => {
     const uri = decodeURI(params.path.slice(1));
     const user = (<any>req).user?.uid ? await renderer.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `auth/users/${(<any>req).user.uid}` }) : null;
     const reqTransformer = req.query['do'] && Array.isArray(req.query['do']) ? req.query['do'][0] : req.query['do'];
-    const transformer = renderer.getTransformer(reqTransformer.toString()) || renderer.dispatch.bind(renderer);
+    const transformer = renderer.getTransformer(reqTransformer?.toString()) || renderer.dispatch.bind(renderer);
     const value = (Object.keys(params.value || {}).length>0 && params.value) || undefined;
     const files = (<any>req).files;
     const fn = transformer(method, <IDispatchOptions>{ itemPath: uri, value, query: req.query, files, user });
@@ -82,7 +82,7 @@ export const apiRoutes = (renderer: Dispatcher) => {
     const uri = decodeURI(req.path.slice(1));
     const user = (<any>req).user?.uid ? await renderer.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `auth/users/${(<any>req).user.uid}` }) : null;
     const reqTransformer = req.query['do'] && Array.isArray(req.query['do']) ? req.query['do'][0] : req.query['do'];
-    const transformer = renderer.getTransformer(reqTransformer.toString()) || renderer.dispatch.bind(renderer);
+    const transformer = renderer.getTransformer(reqTransformer?.toString()) || renderer.dispatch.bind(renderer);
     const value = Object.keys(req.body).length>0 && req.body;
     const files = (<any>req).files;
     const fn = transformer(action, <IDispatchOptions>{ itemPath: uri, value, query: req.query, files, user });
