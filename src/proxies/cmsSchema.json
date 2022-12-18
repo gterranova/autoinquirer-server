@@ -1,0 +1,74 @@
+{
+    "type": "array",
+    "$title": "{{#ifeq options.itemPath 'filesystem'}}Files{{else}}{{key}}{{/ifeq}}",
+    "items": {
+        "type": "object",
+        "$title": "{{name}}{{#if isFolder}}{{else}}{{/if}}",
+        "properties": {
+            "title": {
+                "type": "string",
+                "title": "Title"
+            },
+            "content": {
+                "title": "Content",
+                "type": "string",
+                "$widget": { "type": "markdown"}
+            },
+            "slug": {
+                "type": "string",
+                "title": "Slug",
+                "readOnly": true
+            },
+            "path": {
+                "type": "string",
+                "title": "Path",
+                "readOnly": true
+            },
+            "lastModifiedDate": {
+                "type": "string",
+                "format": "date-time",
+                "title": "Last Modified",
+                "readOnly": true
+            },
+            "type": {
+                "type": "string",
+                "title": "MIME type",
+                "readOnly": true
+            },
+            "size": {
+                "title": "Size",
+                "type": "number",
+                "readOnly": true
+            },
+            "isFolder": {
+                "type": "boolean",
+                "title": "isFolder",
+                "readOnly": true
+            },
+            "resourceUrl": {
+                "type": "string",
+                "title": "Resource URL",
+                "readOnly": true
+            },
+            "iconUrl": {
+                "type": "string",
+                "title": "Icon URL",
+                "readOnly": true
+            }
+        },
+        "$widget": {
+            "wrappers": [
+                "accordion"
+            ],
+            "props": {
+                "expanded": true,
+                "actions": ["page"]
+            }
+        }
+    },
+    "$widget": {
+        "wrappers": [
+            "filesystem"
+        ]
+    }
+}

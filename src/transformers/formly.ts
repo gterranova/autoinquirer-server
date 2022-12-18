@@ -49,8 +49,8 @@ export async function formlyze(methodName: Action, options?: IDispatchOptions): 
     //const itemPath = [dataSource !== this && !itemPath.startsWith(entryPointOptions.parentPath) ? entryPointOptions.parentPath : undefined, itemPath].join('/').replace(/^\//, '');
     //console.log({dataSource, options, entryPointOptions})
     const sanitized = await sanitizeJson(this, options);
-    if (sanitized?.schema?.widget?.formlyConfig?.templateOptions) {
-        sanitized.schema.widget.formlyConfig.templateOptions.expanded = true;
+    if (sanitized?.schema?.widget?.formlyConfig?.props) {
+        sanitized.schema.widget.formlyConfig.props.expanded = true;
     }
     if (sanitized?.schema?.widget?.formlyConfig?.expressionProperties && /parent/.test(Object.values(sanitized?.schema?.widget?.formlyConfig?.expressionProperties).join())) {
         sanitized.schema.widget.formlyConfig.expressionProperties = undefined;
@@ -87,7 +87,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 widget: { formlyConfig: _.merge({ 
                     type: 'select', 
                     wrappers: _.compact([single && !property.enum && 'form-field-link', 'form-field']),
-                    templateOptions: <ITemplateOptions>{ 
+                    props: <ITemplateOptions>{ 
                         label, multiple, 
                         options: enumOptions, 
                         groupBy: property?.$data?.groupBy,
@@ -112,7 +112,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                     properties: { label: { type: 'string' }, path: { type: 'string' } }
                 }: undefined,
                 widget: { formlyConfig: _.merge({ 
-                    templateOptions: <ITemplateOptions>{ 
+                    props: <ITemplateOptions>{ 
                         label, 
                         path: fullPath(parentPath, itemPath, archived), 
                         disabled: true,
@@ -154,7 +154,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
                 },
                 widget: { formlyConfig: _.merge({ 
                     wrappers: schema.$groupBy && ['groups'],
-                    templateOptions: <ITemplateOptions>{ 
+                    props: <ITemplateOptions>{ 
                         label, 
                         path: fullPath(parentPath, itemPath, archived), 
                         groupBy: schema.$groupBy,
@@ -189,7 +189,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
             readOnly: schema.readOnly || archived, 
             properties: {},
             widget: { formlyConfig: _.merge({ 
-                templateOptions: <ITemplateOptions>{ 
+                props: <ITemplateOptions>{ 
                     label, 
                     path: fullPath(parentPath, itemPath, archived), 
                     expanded: archived,
@@ -247,7 +247,7 @@ async function sanitizeJson(dispatcher: Dispatcher, options: IDispatchOptions) {
         ...schema,
         widget: { 
             formlyConfig: _.merge({ 
-                templateOptions: <ITemplateOptions>{ 
+                props: <ITemplateOptions>{ 
                     label: decode(await getName(dispatcher, { 
                         itemPath, 
                         value, 

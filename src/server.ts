@@ -13,7 +13,6 @@ import { apiRoutes } from './api';
 //import { uploadRoutes } from './upload';
 //import { contactsRoutes } from './contacts';
 //import { generateSitemap } from './sitemap';
-import * as SocketIO from 'socket.io';
 import { Dispatcher } from 'autoinquirer';
 import { transformers } from './transformers';
 import { proxies } from './proxies';
@@ -26,7 +25,6 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
   const app = express();
   const http = require('http');
   const server = http.createServer(app) // io requires raw http
-  const io = SocketIO(server) // Setup Socket.io's server
   const PORT = process.env.PORT || 4000;
   const DIST_FOLDER = join(process.cwd(), 'dist', 'browser');
   process.chdir(dirname(schemaFile));
@@ -47,8 +45,11 @@ async function main(schemaFile, dataFile) { // jshint ignore:line
       credentials: true
     })
   );
-  app.use(bodyParser.json({ strict: false }));
-  app.use(bodyParser.urlencoded({ extended: true }));
+  app.use(express.json({ strict: false, limit: '50mb'}));
+  app.use(express.urlencoded({limit: '50mb', extended: true }));
+
+  //app.use(bodyParser.json());
+  //app.use(bodyParser.urlencoded());  
   app.use(logger('dev'));
   app.use(
     expressJwt({

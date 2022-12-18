@@ -1,5 +1,6 @@
 import { AbstractDataSource } from 'autoinquirer';
 import { Action, IDispatchOptions } from 'autoinquirer';
+import { processMeta } from '../transformers/templates';
 import * as Handlebars from 'handlebars';
 import * as _ from 'lodash';
 
@@ -12,10 +13,11 @@ export const TransformerQuery = {
     TEMPLATE: 'template',
     REPORT: 'report',
     SIDENAV: 'sidenav',
+    PAGE: 'page',
 };
 
 export function absolute(testPath: string, absolutePath: string): string {
-    if (testPath && testPath[0] !== '.') { return testPath; }
+    if (testPath && testPath[0] !== '.') { return [absolutePath, testPath].join('/'); }
     if (!testPath) { return absolutePath; }
     const p0 = absolutePath.split('/');
     const rel = testPath.split('/');
@@ -86,6 +88,10 @@ export async function getName(dispatcher: AbstractDataSource, options: IDispatch
     } /* else if (schema.type === 'array' && value && value.length && !key) {
         label = (await Promise.all(value.map(async i => await this.getName(i, key, schema.items)))).join(', ');
     }*/
+    if (value?.content) {
+        const { meta } = processMeta(value.content);
+        label = (<any>meta)?.title;
+    }
     if (!label) {
         label = schema?.title || (value && (value.title || value.name)) || key.toString() || `[${schema.type}]`;
     }

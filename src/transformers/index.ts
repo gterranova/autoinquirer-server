@@ -6,6 +6,7 @@ import { schema } from './schema';
 import { redirect } from './redirect';
 import { report } from './report';
 import { sidenav } from './sidenav';
+import { page } from './page';
 import { TransformerQuery } from './common';
 
 export const transformers = [
@@ -17,6 +18,7 @@ export const transformers = [
     { name: TransformerQuery.REDIRECT, fn: redirect },
     { name: TransformerQuery.REPORT, fn: report },
     { name: TransformerQuery.SIDENAV, fn: sidenav },
+    { name: TransformerQuery.PAGE, fn: page },
 ];
 
 export { TransformerQuery } from './common';

@@ -8,7 +8,7 @@ export async function sidenav(_methodName: Action, options?: IDispatchOptions): 
     const schema = await this.getSchema({ itemPath: '' });
     const value = options?.value || await this.dispatch(Action.GET, {...options, schema, itemPath: '' });
 
-    if (!options.schema) {
+    if (!schema) {
         //console.log(options)
         throw new Error("Schema cannot be null");
     }

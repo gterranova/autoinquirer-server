@@ -1,4 +1,5 @@
 import * as _ from 'lodash';
+import * as fs from 'fs';
 import { join, resolve } from 'path';
 import { Action, IDispatchOptions } from 'autoinquirer';
 
@@ -54,7 +55,7 @@ function holdersKeyOwnership(o: any) {
 
 function resolveHolder(holderPath: string, data: any) {
     if (!holderPath) return {};
-    const projectPath = holderPath.split('/').slice(2);
+    const projectPath = holderPath.split('/').slice(3);
     const value = _.values(lookupValues(projectPath, data));
     return value.length ? value[0].info : {};
 }
@@ -62,7 +63,7 @@ function resolveHolder(holderPath: string, data: any) {
 function resolveMacroareas(data: any) {
     data.redflag.overview.map((item) => {
         //console.log(item)
-        Object.assign(item, _.values(lookupValues(item.key.split('/').slice(2), data))[0]);
+        Object.assign(item, _.values(lookupValues(item.key.split('/').slice(3), data))[0]);
     })
 }
 
@@ -79,7 +80,8 @@ function resolveLands(obj: any, data: any) {
     if (!obj) return [];
     return _.chain(obj).map((land) => {
         if (typeof land == 'string') {
-            const projectPath = land.split('/').slice(2)
+            const projectPath = land.split('/').slice(3)
+            //console.log(projectPath, data, lookupValues(projectPath, data))
             return _.values(lookupValues(projectPath, data))[0];
         }
         return land;
@@ -88,11 +90,25 @@ function resolveLands(obj: any, data: any) {
     .value();
 }
 
+function resolveCDUs(obj: any, data: any) {
+    if (!obj) return [];
+    return _.chain(obj).map((cdu) => {
+        if (typeof cdu == 'string') {
+            const projectPath = cdu.split('/').slice(3)
+            return _.values(lookupValues(projectPath, data))[0];
+        }
+        return cdu;
+    })
+    .flatten().compact()
+    //.map((cdu) => { return {...cdu, lands: groupLandsBySheet(resolveLands(cdu.lands, _.cloneDeep(data)), _.cloneDeep(data))}})
+    .value();
+}
+
 function resolveRegistrations(obj: any, data: any) {
     if (!obj) return [];
     return _.chain(obj.map((land) => land?.registrations || [])).flatten().map( reg => {
         //console.log(reg);
-        const projectPath = reg.split('/').slice(2)
+        const projectPath = reg.split('/').slice(3)
         return _.values(lookupValues(projectPath, data))[0];
     }).value();
 }
@@ -145,6 +161,7 @@ function _sumLandsPrices(o: any, area: number, kind: string = 'price'): number {
 }
 
 function groupLandsBySheet(landsGroup: any[], data: any) {
+    //console.log(landsGroup)
     return _.chain(landsGroup)
         .orderBy(o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'))
         .groupBy(o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0'))
@@ -183,7 +200,8 @@ function groupLandsBySheetAndOwnership(landsGroup: any[], data: any) {
             return { 
                 sheet: lands[0].sheet, 
                 section: lands[0].section, 
-                holders: resolveHolders(lands[0].holders, data),
+                holders: resolveHolders(lands[0].holders, data).filter(h => h.ownershipType !== "grantor right, *diritto del concedente*"),
+                primaryHolder: resolveHolders(lands[0].holders, data).find(h => h.ownershipType === "grantor right, *diritto del concedente*"),
                 municipality: lands[0].municipality, 
                 parcels: _.sortBy(_.map(lands, (o) => o.parcel), (i) => _.toNumber(i)),
                 parcelsGroup: _.sortBy(lands, (l) => _.toNumber(l.parcel)),
@@ -229,14 +247,14 @@ function groupByOwnersAndSheet(data: any) {
                 .uniqBy( reg => ''+reg.transcriptionRegPart+reg.transcriptionRegGen)
                 .filter( reg => /*/CONTRO/.exec(reg.transcriptionType) &&*/ reg.applicable)
                 .map( reg => {
-                    reg.transcriptionType = reg.transcriptionType.toLowerCase().split(' ')[0];
-                    reg.deedType = reg.deedType.toLowerCase();
+                    reg.transcriptionType = reg.transcriptionType?.toLowerCase().split(' ')[0];
+                    reg.deedType = reg.deedType?.toLowerCase();
                     reg.officer = reg.officer?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
                     if (reg.holder && typeof reg.holder == 'string') {
                         reg.holder = resolveHolder(reg.holder, data)
                     }
-                    reg.name = (reg.holder?.name || reg.name).trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
-                    reg.deedDescr = reg.deedDescr.toLowerCase(); //?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+                    reg.name = (reg.holder?.name || reg.name || '').trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+                    reg.deedDescr = reg.deedDescr?.toLowerCase(); //?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
                     //console.log(reg.title);                    
                     return reg;
                 })
@@ -401,15 +419,36 @@ const lands = (data: any) => {
     }
 }
 
-const contracts = (data: any) => {
-    return { contracts: _.chain(data.contracts).map( contract => {
+const contracts = async (data: any, dispatcher) => {
+    return { contracts: await Promise.all(_.chain(data.contracts).map( async contract => {
+        const features = _.chain(await Promise.all(_.map(contract.features, async path => {
+            return dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${path}` })
+        }))).map(o => o.name).value();
+        //console.log(contract.features, features)
+    
         const lands = resolveLands(contract.lands, data);
+        const municipalities = _.compact(_.uniq(_.values(lands).map( o => o.municipality )));
         const landGroup = _.sortBy(groupLandsBySheetAndOwnership(lands, data), o => _.padStart(o.municipality, 25, ' ')+_.padStart(o.sheet, 6, '0')+_.padStart(o.parcel, 6, '0'));
+        const primaryHolders = _.compact(_.uniq(_.values(landGroup).map( o => o.primaryHolder )));
+        const CDUs = _.map(_.chain(lands).map(o => resolveCDUs(o.CDUs, data)).flatten().compact().uniqBy(c => c._id).value(), cdu => {
+            return {...cdu, lands: groupLandsBySheet(resolveLands(cdu.lands, _.cloneDeep(data)), _.cloneDeep(data))};
+        });
         const grantors = _.map(contract.grantors, grantor => resolveHolder(grantor, data));
-
         const allHolders = _.chain(lands).filter(l => l?.holders?.length ).map(l => l.holders).flatten().value();
         const holders = _.uniqBy(resolveHolders(allHolders, data), h => ''+h.name+h.quota+h.ownershipType+h.taxcode);
-        const challengeableHolders = _.filter(holders, h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2021);
+        const fullOwnership = _.chain(holders).map(h => h.ownershipType).every(t => ~["property","proprietà","bare ownership","nuda proprietà"].indexOf(t)).value();
+        const challengeableHolders = _.uniqBy(_.filter(holders, h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2022), h => h.name);
+        
+        const challengeableLands = _.chain(landGroup).filter(l => l?.holders?.length )
+            .map(l => { return {
+                ...l, 
+                holders: _.chain(resolveHolders(l.holders, data))
+                    .uniqBy(h => ''+h.name+h.quota+h.ownershipType+h.taxcode)
+                    .filter(h => h.titleChallengeableWithin && _.toNumber(h.titleChallengeableWithin)>=2022)
+                    .value()
+                }})
+            .filter(l => l.holders.length>0)
+            .value();
 
         const registrations = _.chain(resolveRegistrations(lands, data))
         .map( (registration) => {
@@ -421,14 +460,14 @@ const contracts = (data: any) => {
         .uniqBy( reg => ''+reg.transcriptionRegPart+reg.transcriptionRegGen)
         .filter( reg => /*/CONTRO/.exec(reg.transcriptionType) &&*/ reg.applicable)
         .map( reg => {
-            reg.transcriptionType = reg.transcriptionType.toLowerCase().split(' ')[0];
-            reg.deedType = reg.deedType.toLowerCase();
+            reg.transcriptionType = reg.transcriptionType?.toLowerCase().split(' ')[0];
+            reg.deedType = reg.deedType?.toLowerCase();
             reg.officer = reg.officer?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
             if (reg.holder && typeof reg.holder == 'string') {
                 reg.holder = resolveHolder(reg.holder, data)
             }
-            reg.name = (reg.holder?.name || reg.name).trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
-            reg.deedDescr = reg.deedDescr.toLowerCase(); //?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+            reg.name = (reg.holder?.name || reg.name || '').trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
+            reg.deedDescr = reg.deedDescr?.toLowerCase(); //?.trim().toLowerCase().replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())));
             //console.log(reg.title);                    
             return reg;
         })
@@ -452,21 +491,74 @@ const contracts = (data: any) => {
             ...contract, 
             landGroup, 
             grantors, 
+            primaryHolders,
+            fullOwnership,
+            municipalities,
             totalArea, 
             totalPrice, totalDeposit, totalExtensionPrice,
             challengeableHolders,
+            challengeableLands,
             registrations,
+            CDUs,
+            features,
         }
-    }).value() }
+    }).value()) }
 }
 
 const documents = (data: any) => {
-    const authorizationDocuments = _.orderBy(data.authorizationDocuments, o => [o.data, o.titolo]);
-    const sezioni = _.chain(authorizationDocuments || []).map(d => d.sezione).uniq().value();
+    const authorizationDocuments = _.orderBy(data.authorizationDocuments, ['sezione', 'asc'], ['data', 'asc'], ['titolo','asc']);
+    const sezioni = _.chain(authorizationDocuments || []).map(d => d.sezione).sortedUniq().value();
     return {
         sezioni,
         authorizationDocuments
     }
+}
+
+export const project = async (data: any, dispatcher) => {
+    const features = _.chain(await Promise.all(_.map(data.features, async path => {
+        return dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${path}` })
+    }))).map(o => o.name).value();
+    const c = await contracts(_.cloneDeep(data), dispatcher);
+    //console.log("CONTRACTS:", c)
+    return {..._.cloneDeep(data), ...documents(_.cloneDeep(data)), ...lands(_.cloneDeep(data)), ...c, features};
+}
+
+export const salepurchase = async (data: any, dispatcher) => {
+    const projects = await Promise.all(_.map(await Promise.all(_.map(data.projects, async path => {
+        return dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${path}` })
+    })), p => project(p, dispatcher)));
+    const targets = _.chain(projects).map(p => p.societario).flatten().uniqBy('denominazione').value();
+    const sellers = _.chain(targets).map(t => t.soci).flatten().uniqBy('nome').value();
+    const features = _.chain(await Promise.all(_.map(data.features, async path => {
+        return dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${path}` })
+    }))).map(o => o.name).value();
+    const definitions = _.chain(await dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `spas/definitions` })).cloneDeep().map(d => {
+        d.name = _.map(d.name.split(','), n => n.trim()); 
+        return d; 
+    }).orderBy(d => d.name[0]).value();
+    const conditions = await Promise.all(_.map(data.conditions, async path => {
+        return dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${path}` })
+    }));
+    const reps = _.orderBy(await Promise.all(_.map(data.reps, async path => {
+        return dispatcher.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${path}` })
+    })), '_id');
+    const repsSections = _.chain(reps).map(rep => rep.section).uniq().value();
+
+    for (let i=0; i<projects.length;i++) {
+        const prj: any = projects[i];
+
+        for (let target of targets) {
+            //console.log(_.map(project.societario, 'denominazione'), target.denominazione, _.includes(_.map(project.societario, 'denominazione'), target.denominazione))
+            if (_.includes(_.map(prj.societario, 'denominazione'), target.denominazione)) {
+                if (!target.projects) {
+                    target.projects = [prj];
+                } else {
+                    target.projects.push(prj);
+                }
+            }
+        }
+    }
+    return {..._.cloneDeep(data), projects, targets, sellers, features, definitions, conditions, reps, repsSections };
 }
 
 export async function template(methodName: Action, options?: IDispatchOptions): Promise<any> {
@@ -474,13 +566,14 @@ export async function template(methodName: Action, options?: IDispatchOptions): 
     options.itemPath = options?.itemPath ? await this.convertPathToUri(options.itemPath) : '';
     options.schema = options?.schema || await this.getSchema(options);
     options.value = options?.value || await this.dispatch(methodName, options);
-
+    
     if (options.value.template) {
         const template = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${options.value.template}` });
         const reference = await this.dispatch(Action.GET, <IDispatchOptions>{ itemPath: `${template.reference}` });
         const referenceFilename = resolve(process.cwd(), join(reference.path, reference.name));
         //const definitions = _.chain(options.definitions).split(' ').map(d => d.split('=').map( d => d.trim())).fromPairs().value();
-        const data = {..._.cloneDeep(options.value), ...documents(_.cloneDeep(options.value)), ...lands(_.cloneDeep(options.value)), ...contracts(_.cloneDeep(options.value)) /*, ...definitions*/}
+        const data = options.itemPath.startsWith('spa')? await salepurchase(options.value, this): await project(options.value, this);
+
         const generatedFilename = await generate(data, { 
             template: template.content, 
             reference: referenceFilename,
