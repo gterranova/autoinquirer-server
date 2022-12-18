@@ -54,6 +54,11 @@ Handlebars.registerHelper("kebabCase", (...args) => {
     return _.chain(args).compact().map( x => x.toString().trim()).join(' ').kebabCase().value();
 });
 
+Handlebars.registerHelper("startCase", (...args) => {
+    args.pop()
+    return _.chain(args).compact().map( x => x.toString().trim()).join(' ').startCase().value();
+});
+
 Handlebars.registerHelper("link", (...args) => {
     args.pop()
     const ref = _.chain(args).compact().map( x => x.toString().trim()).join(' ').kebabCase().value();

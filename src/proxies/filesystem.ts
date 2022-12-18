@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { basename, dirname } from 'path';
 //import * as del from "delete";
 import * as crypto from 'crypto';
 import * as _ from "lodash";
@@ -20,38 +21,64 @@ function hash(key) {
   return crypto.pbkdf2Sync('secret', JSON.stringify(key), 100, 12, 'sha1').toString('hex');  // '3745e48...08d59ae'
 }
 
+function getLastModifiedAndSize(path: string): { mtime: Date; size: number; } {
+  let mtime: Date = new Date(Date.now()), size = 0;
+  try {
+    const stats = fs.statSync(path);
+    mtime = stats.mtime;
+    size = stats.size;
+  } catch (error) { }
+  return { mtime, size };
+}
+
+function getMimeTypeAndIcon(path: string, prefix: string) {
+  const mimetype = fs.existsSync(path) && !fs.lstatSync(path).isDirectory() ? lookup(path) || 'application/octet-stream' : 'folder/documents';
+  const iconname = iconsManifest.Synonyms[mimetype.replace('/', '-')] || mimetype.replace('/', '-');
+  const iconUrl = encodeURI(absolute(`./assets/mimetypes-icons/scalable/${iconname}.svg`, prefix).replace(RegExp('^' + prefix), ''));
+  return { mimetype, iconUrl };
+}
+
+function getResourceUrl(path: string, prefix: string) {
+  return { resourceUrl: fs.existsSync(path) && !fs.lstatSync(path).isDirectory() ?
+      encodeURI(absolute(path, prefix).replace(RegExp('^'+prefix), '')) : null
+  };
+}
+
 export interface FileElement {
   _id?: string;
   isFolder: boolean;
-  name: string;
+  title?: string;
   slug: string;
   path: string;
   lastModifiedDate: string;
   size: number;
   type: string;
+  content?: string;
   resourceUrl?: string;
   iconUrl?: string;
 };
 
 interface IPathInfo {
+  uri?: string,
   fullPath?: string,
   folder?: string,
   filename?: string, 
-  property?: string
+  property?: string,
+  newFile?: boolean
 }
 
 export class FileSystemDataSource extends AbstractDispatcher implements AutoinquirerGet, AutoinquirerPush, AutoinquirerUpdate, AutoinquirerSet, AutoinquirerDelete {
   rootDir: string;
   rootUrl: string;
-  private schemaSource: JsonSchema;
+  protected schemaSource: JsonSchema;
 
-  constructor(rootDir: string, rootUrl: string) {
+  constructor(rootDir: string, rootUrl: string, schema=filesystemSchema) {
     super();
     this.rootDir = rootDir || process.cwd();
     this.rootUrl = rootUrl || '';
     //console.log("constructor", rootDir, rootUrl);
     // JSONSCHEMA data relative to package path
-    this.schemaSource = new JsonSchema(filesystemSchema);
+    this.schemaSource = new JsonSchema(schema);
   }
   public async connect(parentDispatcher: AbstractDispatcher) {
     await this.schemaSource.connect(this);
@@ -76,16 +103,17 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     return { ...this, get: (options) => this.getSchema(options) };
   }
 
-  private getPathInfo(options?: IDispatchOptions) : IPathInfo {
-    const fullPath = _.compact([
+  protected getPathInfo(options?: IDispatchOptions) : IPathInfo {
+    let fullPath = _.compact([
       ...this.rootDir.split(RegExp('\\|\/')), 
       ...(options?.params?.rootDir || '').split(RegExp('\\|\/')), 
-      ...options?.itemPath?.replace(RegExp(`^${options?.parentPath}[\\/|\\\\]?`), '').split(RegExp('\\|\/')) 
+      ...options?.itemPath?.replace(RegExp(`^${options?.parentPath}[\\/|\\\\]?`), '').split(RegExp('\\|\/')) || []
     ]).join('/');
     //console.log( "getPathInfo", { fullPath, options });
     if (!fullPath) return {};
-    const pathParts = fullPath.split('/');
-    let folder = '.', filename = '', properties = [], idx = 0;
+
+    const pathParts: string[] = fullPath.split('/');
+    let folder = '.', filename = '', properties: string[] = [], idx = 0;
     while (pathParts.length) {
       const testPath = pathParts.join('/');
       if (fs.existsSync(testPath)) {
@@ -97,31 +125,39 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
         }
         break;
       } else {
-        properties.unshift(pathParts.pop());
+        const prop = pathParts.pop();
+        if (prop) properties.unshift(prop);
       }
     }
-    const property = properties.join('/')
-    return { fullPath: fullPath.replace(RegExp(`\/?${property}$`), ''), folder, filename, property};  
+    let property = properties.join('/')
+    let newFile = false;
+
+    if (!filename && property) {
+      newFile = true;
+      folder = [folder, dirname(property)].join('/');
+      filename = basename(property);
+      property = '';
+    }
+
+    return { fullPath: fullPath.replace(RegExp(`\/?${property}$`), ''), folder, filename, property, uri: options?.parentPath || '', newFile};  
   };
 
-  private getFiles(pathInfo: IPathInfo, depth = 1, relativePath = null) : FileElement[] {
-    let { fullPath, folder, filename } = pathInfo;
-    folder = folder.replace('/./','/');
+  protected getFiles(pathInfo: IPathInfo, depth = 1, relativePath = null) : FileElement[] {
+    let { fullPath, folder='', filename='' } = pathInfo;
+    folder = folder.replace(/\/.\//gm,'/');
     const prefix = this.rootUrl;
-    if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
+    let newFile = fullPath && !fs.existsSync(fullPath);
+    if (!newFile && fs.lstatSync(fullPath).isDirectory()) {
       return _.chain(fs.readdirSync(fullPath, { withFileTypes: true }))
         .map((element) => {
           const isDir = element.isDirectory();
-          const resourceUrl = !isDir? 
-            encodeURI(absolute([folder, element.name].join('/'), this.rootUrl).replace(RegExp('^'+prefix), '')) : 
-            undefined;
-          const mimetype = !isDir? lookup(element.name) || 'application/octet-stream': 'folder/documents';
-          const iconname = iconsManifest.Synonyms[mimetype.replace('/', '-')] || mimetype.replace('/', '-');
-          const iconUrl = encodeURI(absolute(`./assets/mimetypes-icons/scalable/${iconname}.svg`, this.rootUrl).replace(RegExp('^'+prefix), ''));
-    
-          const { mtime, size } = fs.statSync([folder, element.name].join('/'));
+          const elementPath = [folder, element.name].join('/').replace(/\/.\//gm, '/');
+          const { resourceUrl } = getResourceUrl(elementPath, this.rootUrl);
+          const { mimetype, iconUrl } = getMimeTypeAndIcon(elementPath, this.rootUrl);
+          const { mtime, size } = getLastModifiedAndSize(elementPath);
           const item: FileElement = {
-            name: element.name, //`${isDir?'[ ':''}${element.name}${isDir?' ]':''}`,
+            //name: element.name, //`${isDir?'[ ':''}${element.name}${isDir?' ]':''}`,
+            title: _.startCase(element.name.replace('.md','')),
             slug: _.compact([relativePath, element.name]).join('/'),
             path: [folder, element.name].join('/'),
             lastModifiedDate: moment(mtime).toISOString(),
@@ -134,21 +170,25 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
           if (depth > 1 && isDir) {
             return [item, ...this.getFiles({ 
               fullPath: [fullPath, element.name].join('/'), 
-              folder: [folder, element.name].join('/')}, depth-1, _.compact([relativePath, element.name]).join('/'))]
+              folder: [folder, element.name].join('/'),
+              newFile: false
+            }, depth-1, _.compact([relativePath, element.name]).join('/'))]
           }
           return [item];
+
+
       })
       .flattenDeep()
       .sortBy([o => !o.isFolder, 'path', 'name'])
       .value();
     } else {
-      const mimetype = lookup(filename) || 'application/octet-stream';
-      const iconname = iconsManifest.Synonyms[mimetype.replace('/', '-')] || mimetype.replace('/', '-');
-      const iconUrl = encodeURI(absolute(`./assets/mimetypes-icons/scalable/${iconname}.svg`, this.rootUrl).replace(RegExp('^'+prefix), ''));
-      const { mtime, size } = fs.statSync([folder, filename].join('/'));
-      const resourceUrl = encodeURI(absolute([folder, filename].join('/'), this.rootUrl).replace(RegExp('^'+prefix), ''));
+      const elementPath = [folder, filename].join('/').replace(/\/.\//gm, '/');
+      const { mimetype, iconUrl } = getMimeTypeAndIcon(elementPath, this.rootUrl);      
+      const { mtime, size } = getLastModifiedAndSize(elementPath);
+      const { resourceUrl } = getResourceUrl(elementPath, this.rootUrl);
       return [{
-        name: filename,
+        //name: filename,
+        title: _.startCase(filename.replace('.md','')),
         slug: filename,
         path: folder.replace(RegExp('^'+this.rootDir+'/'), ''),
         lastModifiedDate: moment(mtime).toISOString(),
@@ -184,21 +224,23 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
   };
 
   public async push(options?: IDispatchOptions) {
+    if (!options) return;
     //console.log(`FILESYSTEM push(itemPath: ${options.itemPath}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${options.params})`)
-    const { folder } = this.getPathInfo(options);
+    const { folder='' } = this.getPathInfo(options);
     //console.log(options.files);
-    const files = _.isArray(options.files.file)? options.files.file: [options.files.file];
+    const files = _.castArray(options.files.file);
     await Promise.all(files.map( f => new Promise((resolve, reject) => {
-        var source = fs.createReadStream(f.path);
-        var dest = fs.createWriteStream(join(folder,f.name));
+        //console.log(f.filepath, f.originalFilename);
+        var source = fs.createReadStream(f.filepath);
+        var dest = fs.createWriteStream(join(folder,f.originalFilename));
       
         source.pipe(dest);
         source.on('end', function() { 
           //console.log(`copied ${f.path} to ${join(folder,f.name)}`); 
-          fs.unlinkSync(f.path);
+          fs.unlinkSync(f.filepath);
           resolve(null);
         });
-        source.on('error', function(err) { console.log(`error copying ${f.path} to ${join(folder,f.name)}`); reject(err); });      
+        source.on('error', function(err) { console.log(`error copying ${f.filepath} to ${join(folder,f.originalFilename)}`); reject(err); });      
       }))
     );
     return /* this.get(options) */[];
@@ -208,7 +250,7 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
     console.log(`FILESYSTEM set(itemPath: ${options.itemPath}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${options.params})`)
   }
 
-  public async update(options?: IDispatchOptions) {
+  public async update(options?: IDispatchOptions): Promise<any> {
     console.log(`FILESYSTEM update(itemPath: ${options.itemPath}, value: ${options.value}, parentPath: ${options.parentPath}, params: ${options.params})`)
     /*
     if (options?.value !== undefined) {
@@ -230,15 +272,12 @@ export class FileSystemDataSource extends AbstractDispatcher implements Autoinqu
   }
 
   public async delete(options?: IDispatchOptions) {
-    console.log(`FILESYSTEM del(itemPath: ${options?.itemPath}, schema: ${options?.schema}, value: ${options?.value}, parentPath: ${options?.parentPath}, params: ${options?.params})`)
-    /*
-    if (options?.itemPath) {
-      const files = [];
-      const path = join(this.rootDir, options?.params?.rootDir);
-      for await (const f of getFiles(path, options?.itemPath)) { files.push(f); };
-      //del(files.map((f: FileElement) => join(f.path, f.name)));
+    if (!options) return;
+    const { fullPath, folder, filename, property, uri, newFile } = this.getPathInfo(options);
+    //console.log(fullPath, fs.existsSync(fullPath));
+    if (fs.existsSync(fullPath)) {
+      fs.rmSync(fullPath, { recursive: true });
     }
-    */
   };
   
   public async dispatch(methodName: Action, options?: IDispatchOptions): Promise<any> {

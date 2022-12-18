@@ -15,7 +15,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "adm-zip": "^0.5.1",
+    "adm-zip": "^0.5.9",
     "autoinquirer": "file:../autoinquirer",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.19.0",

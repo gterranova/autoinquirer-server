@@ -1,9 +1,9 @@
 {
     "type": "array",
-    "$title": "{{#ifeq options.itemPath 'filesystem'}}Files{{else}}{{key}}{{/ifeq}}",
+    "$title": "{{#ifeq options.itemPath 'cms'}}Knowledge Base{{else}}{{startCase key}}{{/ifeq}}",
     "items": {
         "type": "object",
-        "$title": "{{name}}{{#if isFolder}}{{else}}{{/if}}",
+        "$title": "{{#if title}}{{title}}{{else}}{{startCase slug}}{{/if}}",
         "properties": {
             "title": {
                 "type": "string",
